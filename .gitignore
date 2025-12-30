@@ -218,3 +218,4 @@ first_input_llm.py
 prompt_first_LLM.txt
 prompt_test.txt
 /DROP/
+.DS_Store
