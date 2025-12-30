@@ -291,7 +291,7 @@ def render_screen_1():
             '<div style="background:#E07A5F; color:white; padding:10px 20px; border-radius:10px; font-weight:bold; display:inline-block; margin-bottom:10px;">¿Dónde te encuentras?</div>',
             unsafe_allow_html=True)
         
-        location = st.text_input("Ubicación", placeholder="Ubicación: ej: Plaza España, Madrid", label_visibility="collapsed")
+        location = st.text_input("Ubicación", placeholder="Ubicación: ej: Plaza España, Madrid", value="PLaza Nueva, Madrid, España", label_visibility="collapsed")
 
         st.markdown("<br>", unsafe_allow_html=True)
         

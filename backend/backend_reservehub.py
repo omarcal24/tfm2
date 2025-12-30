@@ -2,6 +2,8 @@
 """
 Módulo para conectar con la API de ReserveHub (mock interno)
 y verificar disponibilidad de restaurantes
+
+VERSIÓN CORREGIDA: Evita deadlock HTTP con modo interno
 """
 import requests
 from typing import List, Dict, Optional
@@ -34,8 +36,15 @@ class ReservationRequest(BaseModel):
 class ReserveHubClient:
     """Cliente para interactuar con ReserveHub API"""
     
-    def __init__(self, base_url: str = "http://localhost:8000", api_key: str = "demo-api-key"):
+    def __init__(
+        self, 
+        base_url: str = "http://localhost:8000", 
+        api_key: str = "demo-api-key",
+        use_internal_logic: bool = False  # ✅ NUEVO: Evita auto-llamadas HTTP
+    ):
         self.base_url = base_url
+        self.api_key = api_key
+        self.use_internal_logic = use_internal_logic  # ✅ NUEVO
         self.headers = {
             "x-api-key": api_key,
             "Content-Type": "application/json"
@@ -46,6 +55,11 @@ class ReserveHubClient:
         Verifica si un restaurante existe en ReserveHub
         Retorna el venue si existe, None si no
         """
+        # ✅ NUEVO: Si usa modo interno, ejecutar mock sin HTTP
+        if self.use_internal_logic:
+            return self._mock_venue_lookup(venue_name)
+        
+        # Código HTTP original
         try:
             response = requests.get(
                 f"{self.base_url}/api/venues",
@@ -67,6 +81,10 @@ class ReserveHubClient:
     
     def get_venue_shifts(self, venue_id: str) -> List[Dict]:
         """Obtiene los turnos disponibles de un restaurante"""
+        # ✅ NUEVO: Modo interno
+        if self.use_internal_logic:
+            return self._mock_shifts(venue_id)
+        
         try:
             response = requests.get(
                 f"{self.base_url}/api/venues/{venue_id}/shifts",
@@ -90,6 +108,10 @@ class ReserveHubClient:
         Consulta disponibilidad de un restaurante
         Retorna lista de slots disponibles
         """
+        # ✅ NUEVO: Modo interno
+        if self.use_internal_logic:
+            return self._mock_availability(venue_id, reservation_date, party_size)
+        
         try:
             query = {
                 "venue_id": venue_id,
@@ -124,6 +146,13 @@ class ReserveHubClient:
         shift_id: Optional[str] = None
     ) -> Optional[Dict]:
         """Crea una reserva en ReserveHub"""
+        # ✅ NUEVO: Modo interno
+        if self.use_internal_logic:
+            return self._mock_reservation(
+                venue_id, reservation_date, reservation_time,
+                party_size, customer_name, customer_phone
+            )
+        
         try:
             reservation_data = {
                 "venue_id": venue_id,
@@ -149,6 +178,114 @@ class ReserveHubClient:
         except Exception as e:
             print(f"Error creando reserva: {e}")
             return None
+    
+    # ============================================
+    # ✅ NUEVOS MÉTODOS MOCK (SIN HTTP)
+    # ============================================
+    
+    def _mock_venue_lookup(self, venue_name: str) -> Optional[Dict]:
+        """
+        Simula búsqueda de venue sin HTTP.
+        30% de restaurantes tienen integración con ReserveHub.
+        """
+        import random
+        
+        # Generar resultado determinista basado en nombre
+        random.seed(venue_name)
+        has_integration = random.random() < 0.30
+        
+        if not has_integration:
+            return None
+        
+        # Generar venue_id único
+        venue_id = f"venue-{abs(hash(venue_name)) % 1000}"
+        
+        return {
+            "id": venue_id,
+            "name": venue_name,
+            "slug": venue_name.lower().replace(" ", "-"),
+            "timezone": "Europe/Madrid",
+            "currency": "EUR"
+        }
+    
+    def _mock_shifts(self, venue_id: str) -> List[Dict]:
+        """Simula turnos de restaurante"""
+        return [
+            {
+                "id": f"{venue_id}-lunch",
+                "name": "Comida",
+                "start_time": "13:00:00",
+                "end_time": "16:00:00",
+                "venue_id": venue_id
+            },
+            {
+                "id": f"{venue_id}-dinner",
+                "name": "Cena",
+                "start_time": "20:00:00",
+                "end_time": "23:00:00",
+                "venue_id": venue_id
+            }
+        ]
+    
+    def _mock_availability(
+        self,
+        venue_id: str,
+        reservation_date: date,
+        party_size: int
+    ) -> List[Dict]:
+        """Simula disponibilidad sin HTTP"""
+        import random
+        from datetime import time as dt_time
+        
+        # Generar resultado determinista
+        random.seed(f"{venue_id}{reservation_date}")
+        
+        available_slots = []
+        
+        # Generar 3 slots entre 20:00 y 22:00
+        for i in range(3):
+            hour = 20 + (i // 2)
+            minutes = 0 if i % 2 == 0 else 30
+            
+            slot_time = dt_time(hour, minutes)
+            available = random.random() > 0.3  # 70% probabilidad
+            
+            available_slots.append({
+                "slot_time": slot_time.isoformat(),
+                "available": available,
+                "shift_id": f"{venue_id}-dinner"
+            })
+        
+        # Garantizar al menos 1 slot disponible
+        if not any(s["available"] for s in available_slots):
+            available_slots[0]["available"] = True
+        
+        return available_slots
+    
+    def _mock_reservation(
+        self,
+        venue_id: str,
+        reservation_date: date,
+        reservation_time: time,
+        party_size: int,
+        customer_name: str,
+        customer_phone: str
+    ) -> Dict:
+        """Simula creación de reserva"""
+        import uuid
+        
+        return {
+            "id": str(uuid.uuid4()),
+            "venue_id": venue_id,
+            "reservation_date": reservation_date.isoformat(),
+            "reservation_time": reservation_time.isoformat(),
+            "party_size": party_size,
+            "status": "confirmed",
+            "name": customer_name,
+            "phone": customer_phone,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }
 
 
 # Función auxiliar para enriquecer resultados de Google Places con disponibilidad
@@ -163,7 +300,8 @@ def enrich_with_availability(
     de ReserveHub si el restaurante existe en el sistema
     """
     if client is None:
-        client = ReserveHubClient()
+        # ✅ NUEVO: Usar modo interno por defecto para evitar deadlock
+        client = ReserveHubClient(use_internal_logic=True)
     
     enriched_results = []
     

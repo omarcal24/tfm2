@@ -1,10 +1,11 @@
 from __future__ import annotations
-import sys
-from pathlib import Path as FilePath
 """
-ReserveHub API Mock - OpenAPI 3.0.3 100% Compatible
+CoverManager API Mock - OpenAPI 3.0.3 100% Compatible
 Post-procesamiento del esquema para Swagger Editor
 """
+import sys
+from pathlib import Path as FilePath
+
 
 from fastapi import FastAPI, HTTPException, Header, Query, Path
 from fastapi.openapi.utils import get_openapi
@@ -14,14 +15,10 @@ from datetime import datetime, date, time, timedelta
 import uuid
 import random
 
-ROOT_DIR = FilePath(__file__).parent.parent  # Sube a api/
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-    print(f"✓ Path configurado: {ROOT_DIR}")
+ROOT_DIR = FilePath(__file__).parent.parent
+sys.path.insert(0, str(ROOT_DIR))
 
 from agent.agent_main import RestaurantBookingAgent
-from backend.backend_google_places import PlaceSearchPayload, places_text_search
-from backend.backend_reservehub import enrich_with_availability, ReserveHubClient 
 
 # ==================== MODELOS ====================
 
@@ -136,10 +133,6 @@ def get_agent():
         booking_agent = RestaurantBookingAgent()
         print("✓ Agente listo\n")
     return booking_agent
-
-# ========== BASE URL CONFIGURATION ==========
-BASE_URL = "http://localhost:8000"
-API_KEY = "demo-api-key"
 
 # ==================== AUTENTICACIÓN ====================
 
@@ -538,8 +531,27 @@ async def create_reservation_request(request: AgentReservationRequest):
         if not request.ranked_restaurants:
             print("🔍 [FastAPI] Iniciando búsqueda de restaurantes...")
             
-            # ✅ USAR LOS IMPORTS GLOBALES (ya están al inicio del archivo)
-            # NO necesitamos re-importar aquí
+            # Importar módulos de búsqueda
+            import sys
+            from pathlib import Path
+            project_root = Path(__file__).parent
+            if str(project_root) not in sys.path:
+                sys.path.insert(0, str(project_root))
+            
+            try:
+                from backend_google_places import PlaceSearchPayload, places_text_search
+                from backend_reservehub import enrich_with_availability, ReserveHubClient
+            except ImportError:
+                try:
+                    from backend.backend_google_places import PlaceSearchPayload, places_text_search
+                    from backend.backend_reservehub import enrich_with_availability, ReserveHubClient
+                except ImportError as e:
+                    print(f"❌ Error importando módulos de búsqueda: {e}")
+                    return {
+                        "status": "failed",
+                        "message": "Error de configuración del servidor.",
+                        "restaurants": []
+                    }
             
             # Preparar búsqueda
             query = context.get("original_query", "restaurante")
@@ -594,13 +606,9 @@ async def create_reservation_request(request: AgentReservationRequest):
             print(f"🔗 [FastAPI] Verificando disponibilidad para {reservation_date}...")
             
             try:
-                reservehub_client = ReserveHubClient(
-                    base_url=BASE_URL, 
-                    api_key="demo-api-key",
-                    use_internal_logic=True
-                )
+                reservehub_client = ReserveHubClient(base_url=BASE_URL, api_key=API_KEYS.get("demo-api-key"))
                 enriched_results = enrich_with_availability(
-                    google_places_results=google_results[:15],
+                    google_places_results=google_results[:15],  # Top 15
                     reservation_date=reservation_date,
                     party_size=context.get("party_size", 2),
                     client=reservehub_client
@@ -635,8 +643,21 @@ async def create_reservation_request(request: AgentReservationRequest):
         # ========================================
         print("🤖 [AGENTE] Analizando restaurantes...")
         
-        # ✅ EL IMPORT YA ESTÁ AL INICIO DEL ARCHIVO
-        # from agent.agent_main import RestaurantBookingAgent
+        # Importar el agente
+        try:
+            # Asegurar que agent/ está en el path
+            agent_dir = project_root / "agent"
+            if str(agent_dir) not in sys.path:
+                sys.path.insert(0, str(agent_dir))
+            
+            from agent_main import RestaurantBookingAgent
+        except ImportError as e:
+            print(f"❌ Error importando agente: {e}")
+            print(f"   Buscando en: {project_root}")
+            
+            # Fallback: devolver resultados sin análisis del agente
+            print("⚠️ Usando modo fallback (sin agente)")
+            return _fallback_response_without_agent(request)
         
         # Inicializar agente
         agent = get_agent()
@@ -825,9 +846,9 @@ def get_agent():
     global booking_agent
     if booking_agent is None:
         print("🤖 Inicializando Agente de Reservas...")
-        # ✅ El import ya está al inicio del archivo, solo instanciar
+        from agent_main import RestaurantBookingAgent
         booking_agent = RestaurantBookingAgent()
-        print("✅ Agente listo\n")
+        print("✓ Agente listo\n")
     return booking_agent
 
 @app.delete("/api/reservations/{reservation_id}",
