@@ -80,6 +80,6 @@ python run.py --mode test --test-case complete
 
 **In the terminal, inside the FastAPI folder:**
 ```bash
-python api_server.py --mode interactive
+python api_server.py
 ```
 ---
