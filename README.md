@@ -76,5 +76,10 @@ python run.py --mode test
 ```bash
 python run.py --mode test --test-case complete
 ```
+### 2. Run the API Server
 
+**In the terminal, inside the FastAPI folder:**
+```bash
+python api_server.py --mode interactive
+```
 ---
