@@ -4,6 +4,24 @@
 
 ### 🤖 Intelligent Restaurant Reservation Agent
 
+
+**Para probar los ultimos cambios 9/Enero**:
+1. Agente en terminal: python agent/main.py   --> Ejecutará el agente en terminal, podrás interactuar con el y ver el proceso de razonamiento
+2. FastAPI en terminal antes de lanzar front: python .\FastAPI\api_server.py
+3. Lanzar el Front para interactuar con el agente a traves de FastAPI: streamlit run frontend/frontend.py
+
+
+POR HACER/SUGERIR:
+- Integrar flujo llamadas de voz con twilio y agente
+- Integrar todo bajo un mismo script ejecutable
+- Terminar de ajustar el Frontend para dejarlo más fino
+- montar en nube como aplicación???(megamotivada seria ya)
+
+
+
+
+TO UPDATE BELOW
+
 An autonomous agent built with LangGraph that searches restaurants, checks availability, and makes reservations using natural language.
 
 **Key Features:**
