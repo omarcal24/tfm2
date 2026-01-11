@@ -219,3 +219,5 @@ prompt_first_LLM.txt
 prompt_test.txt
 /DROP/
 .DS_Store
+credentials.json
+token.json

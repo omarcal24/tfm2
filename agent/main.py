@@ -55,7 +55,7 @@ def main():
         messages.append({"role": "user", "content": user_input})
         
         try:
-            result = run(messages)
+            result = run_agent(messages)
             response = result["response"]
             print(f"\n🤖 Agente: {response}\n")
             

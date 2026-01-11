@@ -25,10 +25,17 @@ ollama==0.6.1
 google-genai==1.53.0
 
 # Twilio call
-twilio
+twilio==9.9.1
 python-dotenv
-pyngrok
-flask
-flask-sock
-elevenlabs
+pyngrok==7.5.0
+flask==3.1.2
+flask-sock==0.7.0
+elevenlabs==2.29.0
 websockets
+
+# Calendar
+langchain-google-community==3.0.4
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+
