@@ -2,7 +2,7 @@
 dotenv
 openai
 langchain
-
+langchain-openai
 
 
 # Alejandro Python 3.11.0
