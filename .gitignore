@@ -159,6 +159,9 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+# google credentials file
+.json
+
 # Pyre type checker
 .pyre/
 

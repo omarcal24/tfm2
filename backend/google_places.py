@@ -3,10 +3,10 @@
 DOCUMENTACIÓN - Módulo de Búsqueda Avanzada Google Places
 ===========================================================
 
-Este módulo implementa un wrapper mejorado para la API de 
+Este módulo implementa un wrapper mejorado para la API de
 Google Places, permitiendo realizar búsquedas tipo "Text Search"
-con geocodificación automática de direcciones, obtención de 
-detalles avanzados de cada lugar y filtrado opcional por 
+con geocodificación automática de direcciones, obtención de
+detalles avanzados de cada lugar y filtrado opcional por
 tiempo máximo de viaje usando Distance Matrix.
 
 El flujo interno del módulo es:
@@ -128,6 +128,7 @@ ESTAMOS ATOPE JEFE DE EQUIPO !!!!
 
 ===========================================================
 """
+
 # ---------------- IMPORTS ----------------
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -135,16 +136,16 @@ import requests
 import os
 from dotenv import load_dotenv
 
-from config.settings import load_config
+
 # ---------------- CARGA CONFIGURACIÓN ----------------
-config = load_config()
 
 # Carga las variables de entorno desde el .env
 load_dotenv(".env")
 # ---------------- API KEY ----------------
-GOOGLE_MAPS_API_KEY = config["GOOGLE_MAPS_API_KEY"]
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 if not GOOGLE_MAPS_API_KEY:
     raise ValueError("Debes definir la variable de entorno GOOGLE_MAPS_API_KEY")
+
 
 # ---------------- Payload de búsqueda ----------------
 class PlaceSearchPayload(BaseModel):
@@ -154,76 +155,38 @@ class PlaceSearchPayload(BaseModel):
     price_level: Optional[int] = None
     extras: Optional[str] = None
     max_travel_time: Optional[int] = None  # minutos máximos
-    travel_mode: Optional[str] = "walking"  # "walking", "transit", "driving", "bicycling"
+    travel_mode: Optional[str] = (
+        "walking"  # "walking", "transit", "driving", "bicycling"
+    )
     col_date: Optional[str] = None  # fecha de la visita (YYYY-MM-DD)
     col_time: Optional[str] = None  # hora de la visita (HH:MM
+
 
 # ---------------- Funciones auxiliares ----------------
 def geocode_location(location: str) -> Optional[str]:
     """
-    Convierte un string de ubicación en lat,lng usando Place Autocomplete + Place Details
-    para obtener coordenadas precisas.
-    
-    MEJORADO: Ahora busca primero en (regions) para ciudades, y si falla, en geocode directo.
+    Convierte un string de ubicación en lat,lng usando Geocoding API.
+
+    ACTUALIZADO: Usa solo Geocoding API (más simple y confiable).
     """
-    
-    # ============================================================
-    # MÉTODO 1: Usar Place Autocomplete con types=(regions)
-    # Mejor para ciudades, pueblos, barrios
-    # ============================================================
-    autocomplete_url = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
-    autocomplete_params = {
-        "input": location,
-        "types": "(regions)",  # ✅ CAMBIO: Ahora busca regiones (ciudades, pueblos)
-        "key": GOOGLE_MAPS_API_KEY
-    }
-    r = requests.get(autocomplete_url, params=autocomplete_params)
-    r.raise_for_status()
-    data = r.json()
-    
-    # Si encuentra resultados con (regions)
-    if data.get("predictions"):
-        place_id = data["predictions"][0]["place_id"]
-        
-        # Obtener detalles del lugar
-        details_url = "https://maps.googleapis.com/maps/api/place/details/json"
-        details_params = {
-            "place_id": place_id,
-            "fields": "geometry,formatted_address",
-            "key": GOOGLE_MAPS_API_KEY
-        }
-        r2 = requests.get(details_url, params=details_params)
-        r2.raise_for_status()
-        details = r2.json()
-        
-        location_data = details.get("result", {}).get("geometry", {}).get("location")
-        if location_data:
-            coords = f"{location_data.get('lat')},{location_data.get('lng')}"
-
-            return coords
-    
-    # ============================================================
-    # MÉTODO 2: Fallback a Geocoding API directo
-    # Si el autocomplete no encuentra nada, usar geocoding directo
-    # ============================================================
-
     geocode_url = "https://maps.googleapis.com/maps/api/geocode/json"
-    geocode_params = {
-        "address": location,
-        "key": GOOGLE_MAPS_API_KEY
-    }
-    r3 = requests.get(geocode_url, params=geocode_params)
-    r3.raise_for_status()
-    geocode_data = r3.json()
-    
-    if geocode_data.get("results"):
-        location_data = geocode_data["results"][0]["geometry"]["location"]
-        coords = f"{location_data.get('lat')},{location_data.get('lng')}"
+    geocode_params = {"address": location, "key": GOOGLE_MAPS_API_KEY}
 
-        return coords
-    
-    print(f"❌ No se pudo geocodificar '{location}'")
-    return None
+    try:
+        r = requests.get(geocode_url, params=geocode_params)
+        r.raise_for_status()
+        geocode_data = r.json()
+
+        if geocode_data.get("results"):
+            location_data = geocode_data["results"][0]["geometry"]["location"]
+            coords = f"{location_data.get('lat')},{location_data.get('lng')}"
+            return coords
+
+        print(f"❌ No se pudo geocodificar '{location}'")
+        return None
+    except Exception as e:
+        print(f"❌ Error geocodificando '{location}': {e}")
+        return None
 
 
 def extract_neighborhood(address_components: List[Dict[str, Any]]) -> Optional[str]:
@@ -237,6 +200,7 @@ def extract_neighborhood(address_components: List[Dict[str, Any]]) -> Optional[s
         if "locality" in comp.get("types", []):
             return comp.get("long_name")
     return None
+
 
 def normalize_place_details(details: Dict[str, Any]) -> Dict[str, Any]:
     result = details.get("result", {})
@@ -252,23 +216,29 @@ def normalize_place_details(details: Dict[str, Any]) -> Dict[str, Any]:
         "rating": result.get("rating"),
         "user_ratings_total": result.get("user_ratings_total"),
         "price_level": result.get("price_level"),
-        "location": result.get("geometry", {}).get("location")
+        "location": result.get("geometry", {}).get("location"),
     }
+
 
 def get_place_details(place_id: str) -> Dict[str, Any]:
     params = {
         "place_id": place_id,
         "fields": "name,formatted_address,formatted_phone_number,website,opening_hours,"
-                  "types,rating,user_ratings_total,price_level,geometry,"
-                  "address_components,place_id",
-        "key": GOOGLE_MAPS_API_KEY
+        "types,rating,user_ratings_total,price_level,geometry,"
+        "address_components,place_id",
+        "key": GOOGLE_MAPS_API_KEY,
     }
-    r = requests.get("https://maps.googleapis.com/maps/api/place/details/json", params=params)
+    r = requests.get(
+        "https://maps.googleapis.com/maps/api/place/details/json", params=params
+    )
     r.raise_for_status()
     data = r.json()
     return normalize_place_details(data)
 
-def filter_by_travel_time(origin: str, destinations: List[str], max_time: int, mode: str = "walking") -> List[bool]:
+
+def filter_by_travel_time(
+    origin: str, destinations: List[str], max_time: int, mode: str = "walking"
+) -> List[bool]:
     """
     Devuelve un booleano por cada destino: True si está dentro del tiempo máximo de viaje.
     """
@@ -279,7 +249,7 @@ def filter_by_travel_time(origin: str, destinations: List[str], max_time: int, m
         "origins": origin,
         "destinations": "|".join(destinations),
         "mode": mode,
-        "key": GOOGLE_MAPS_API_KEY
+        "key": GOOGLE_MAPS_API_KEY,
     }
     url = "https://maps.googleapis.com/maps/api/distancematrix/json"
     r = requests.get(url, params=params)
@@ -294,29 +264,32 @@ def filter_by_travel_time(origin: str, destinations: List[str], max_time: int, m
             results.append(False)
     return results
 
+
 import re
+
 
 def is_lat_lng(value: str) -> bool:
     """
     Detecta si un string está en formato 'lat,lng', por ejemplo '42.8805533,-8.5422782'
     """
-    pattern = r'^-?\d+(\.\d+)?,-?\d+(\.\d+)?$'
+    pattern = r"^-?\d+(\.\d+)?,-?\d+(\.\d+)?$"
     return bool(re.match(pattern, value.strip()))
 
 
 # ---------------- Función principal ----------------
 def places_text_search_old(payload: PlaceSearchPayload) -> Dict[str, Any]:
-    
-    #location a default a Puerta del Sol, Madrid si no hay location
+
+    # location a default a Puerta del Sol, Madrid si no hay location
     location = payload.location if payload.location is not None else "40.4238,-3.7130"
 
-
-    if location is not None and not  is_lat_lng(location):
+    if location is not None and not is_lat_lng(location):
         latlng = geocode_location(location)
         if latlng:
             location = latlng
         else:
-            raise ValueError(f"No se pudo geocodificar la ubicación: {payload.location}")
+            raise ValueError(
+                f"No se pudo geocodificar la ubicación: {payload.location}"
+            )
 
     query_keywords = payload.query
     if payload.extras:
@@ -326,13 +299,15 @@ def places_text_search_old(payload: PlaceSearchPayload) -> Dict[str, Any]:
         "query": query_keywords,
         "location": location,
         "radius": payload.radius,
-        "key": GOOGLE_MAPS_API_KEY
+        "key": GOOGLE_MAPS_API_KEY,
     }
     if payload.price_level is not None:
         params["minprice"] = payload.price_level
         params["maxprice"] = payload.price_level
 
-    r = requests.get("https://maps.googleapis.com/maps/api/place/textsearch/json", params=params)
+    r = requests.get(
+        "https://maps.googleapis.com/maps/api/place/textsearch/json", params=params
+    )
     r.raise_for_status()
     data = r.json()
 
@@ -348,23 +323,32 @@ def places_text_search_old(payload: PlaceSearchPayload) -> Dict[str, Any]:
             "user_ratings_total": r_item.get("user_ratings_total"),
             "price_level": r_item.get("price_level"),
             "location": r_item.get("geometry", {}).get("location"),
-            "neighborhood": extract_neighborhood(r_item.get("address_components", []))
+            "neighborhood": extract_neighborhood(r_item.get("address_components", [])),
         }
         if normalized["place_id"]:
             details = get_place_details(normalized["place_id"])
             normalized.update(details)
         results.append(normalized)
-        destinations.append(f"{normalized['location']['lat']},{normalized['location']['lng']}")
+        destinations.append(
+            f"{normalized['location']['lat']},{normalized['location']['lng']}"
+        )
 
     # Filtrar por tiempo de viaje si se especifica
     if payload.max_travel_time is not None:
-        travel_filter = filter_by_travel_time(location, destinations, payload.max_travel_time, payload.travel_mode)
+        travel_filter = filter_by_travel_time(
+            location, destinations, payload.max_travel_time, payload.travel_mode
+        )
         results = [r for r, keep in zip(results, travel_filter) if keep]
 
     return results
 
+
 def places_text_search(payload: PlaceSearchPayload) -> Dict[str, Any]:
-    
+    """
+    Búsqueda de lugares usando la nueva Places API (New).
+
+    MIGRADO: Ahora usa Places API (New) con Text Search.
+    """
     # Location a default a Puerta del Sol, Madrid si no hay location
     location = payload.location if payload.location is not None else "40.4238,-3.7130"
 
@@ -373,63 +357,125 @@ def places_text_search(payload: PlaceSearchPayload) -> Dict[str, Any]:
         if latlng:
             location = latlng
         else:
-            raise ValueError(f"No se pudo geocodificar la ubicación: {payload.location}")
+            raise ValueError(
+                f"No se pudo geocodificar la ubicación: {payload.location}"
+            )
 
+    # Construir query
     query_keywords = payload.query
     if payload.extras:
-        query_keywords += " " + " ".join(payload.extras)
+        query_keywords += " " + payload.extras
 
-    # ✅ SOLUCIÓN: Si hay max_travel_time pero no radius, establecer uno razonable
+    # Calcular radio
     radius = payload.radius
     if radius is None:
         if payload.max_travel_time:
-            # Estimación: 10 min coche ≈ 5-10 km, 10 min walking ≈ 800m
             if payload.travel_mode == "driving":
-                radius = payload.max_travel_time * 833  # ~50 km/h → 833 m/min
+                radius = payload.max_travel_time * 833
             elif payload.travel_mode == "bicycling":
-                radius = payload.max_travel_time * 250  # ~15 km/h → 250 m/min
-            else:  # walking o transit
-                radius = payload.max_travel_time * 80   # ~5 km/h → 80 m/min
+                radius = payload.max_travel_time * 250
+            else:
+                radius = payload.max_travel_time * 80
         else:
-            radius = 5000  # Default 5km si no hay ninguna info
+            radius = 5000
 
-    params = {
-        "query": query_keywords,
-        "location": location,
-        "radius": radius,  # ✅ Ahora siempre tiene un valor
-        "key": GOOGLE_MAPS_API_KEY
+    # Nueva Places API - Text Search
+    url = "https://places.googleapis.com/v1/places:searchText"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,"
+        "places.rating,places.userRatingCount,places.priceLevel,places.types,"
+        "places.nationalPhoneNumber,places.websiteUri,places.regularOpeningHours,"
+        "places.addressComponents",
     }
-    if payload.price_level is not None:
-        params["minprice"] = payload.price_level
-        params["maxprice"] = payload.price_level
 
-    r = requests.get("https://maps.googleapis.com/maps/api/place/textsearch/json", params=params)
+    # Separar lat,lng
+    lat, lng = location.split(",")
+
+    body = {
+        "textQuery": query_keywords,
+        "locationBias": {
+            "circle": {
+                "center": {"latitude": float(lat), "longitude": float(lng)},
+                "radius": radius,
+            }
+        },
+        "maxResultCount": 20,
+    }
+
+    # Añadir filtro de precio si se especifica
+    if payload.price_level is not None:
+        body["minRating"] = 0.0
+        body["priceLevels"] = [f"PRICE_LEVEL_{payload.price_level}"]
+
+    r = requests.post(url, headers=headers, json=body)
     r.raise_for_status()
     data = r.json()
 
     results = []
     destinations = []
-    for r_item in data.get("results", []):
+
+    for place in data.get("places", []):
+        # Extraer price level (viene como string "PRICE_LEVEL_2")
+        price_level_str = place.get("priceLevel", "")
+        price_level = None
+        if price_level_str and price_level_str.startswith("PRICE_LEVEL_"):
+            try:
+                price_level = int(price_level_str.split("_")[-1])
+            except:
+                pass
+
+        # Extraer ubicación
+        loc = place.get("location", {})
+        location_dict = {"lat": loc.get("latitude"), "lng": loc.get("longitude")}
+
+        # Extraer neighborhood de addressComponents
+        neighborhood = None
+        for comp in place.get("addressComponents", []):
+            if "neighborhood" in comp.get("types", []):
+                neighborhood = comp.get("longText")
+                break
+            elif "sublocality_level_1" in comp.get("types", []):
+                neighborhood = comp.get("longText")
+            elif not neighborhood and "locality" in comp.get("types", []):
+                neighborhood = comp.get("longText")
+
+        # Extraer horarios
+        opening_hours = {}
+        if "regularOpeningHours" in place:
+            opening_hours = {
+                "open_now": place["regularOpeningHours"].get("openNow"),
+                "weekday_text": place["regularOpeningHours"].get(
+                    "weekdayDescriptions", []
+                ),
+                "periods": place["regularOpeningHours"].get("periods", []),
+            }
+
         normalized = {
-            "name": r_item.get("name"),
-            "address": r_item.get("formatted_address"),
-            "place_id": r_item.get("place_id"),
-            "types": r_item.get("types"),
-            "rating": r_item.get("rating"),
-            "user_ratings_total": r_item.get("user_ratings_total"),
-            "price_level": r_item.get("price_level"),
-            "location": r_item.get("geometry", {}).get("location"),
-            "neighborhood": extract_neighborhood(r_item.get("address_components", []))
+            "name": place.get("displayName", {}).get("text"),
+            "address": place.get("formattedAddress"),
+            "place_id": place.get("id"),
+            "types": place.get("types", []),
+            "rating": place.get("rating"),
+            "user_ratings_total": place.get("userRatingCount"),
+            "price_level": price_level,
+            "location": location_dict,
+            "neighborhood": neighborhood,
+            "phone": place.get("nationalPhoneNumber"),
+            "website": place.get("websiteUri"),
+            "opening_hours": opening_hours,
         }
-        if normalized["place_id"]:
-            details = get_place_details(normalized["place_id"])
-            normalized.update(details)
+
         results.append(normalized)
-        destinations.append(f"{normalized['location']['lat']},{normalized['location']['lng']}")
+        if location_dict.get("lat") and location_dict.get("lng"):
+            destinations.append(f"{location_dict['lat']},{location_dict['lng']}")
 
     # Filtrar por tiempo de viaje si se especifica
-    if payload.max_travel_time is not None:
-        travel_filter = filter_by_travel_time(location, destinations, payload.max_travel_time, payload.travel_mode)
+    if payload.max_travel_time is not None and destinations:
+        travel_filter = filter_by_travel_time(
+            location, destinations, payload.max_travel_time, payload.travel_mode
+        )
         results = [r for r, keep in zip(results, travel_filter) if keep]
 
     return results

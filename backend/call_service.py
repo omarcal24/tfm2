@@ -79,17 +79,20 @@ PUBLIC_URL: Optional[str] = None
 # GENERADOR DE SCRIPT DINÁMICO
 # ===========================================================
 
+
 def generate_call_script(
-    mission: str,
-    context: str,
-    persona_name: str,
-    persona_phone: str
+    mission: str, context: str, persona_name: str, persona_phone: str
 ) -> str:
     """Genera el script para la llamada basado en la misión."""
-    
+
     # Formatear teléfono para dictar
-    phone_formatted = " ... ".join([persona_phone[i:i+3] for i in range(0, len(persona_phone.replace(" ", "")), 3)])
-    
+    phone_formatted = " ... ".join(
+        [
+            persona_phone[i : i + 3]
+            for i in range(0, len(persona_phone.replace(" ", "")), 3)
+        ]
+    )
+
     return f"""Eres {persona_name}, una persona real que está haciendo una llamada telefónica.
 
 ═══════════════════════════════════════════════════════════
@@ -142,26 +145,28 @@ Tú: "Hola, buenos días. Llamaba para [tu misión en una frase]..."
 # ANÁLISIS DE RESULTADO CON LLM
 # ===========================================================
 
+
 @traceable(name="analyze_call_result", run_type="chain")
 def analyze_call_result(
-    mission: str,
-    transcript: List[Dict[str, Any]]
+    mission: str, transcript: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
     """Analiza la transcripción para extraer resultado y notas importantes."""
-    
+
     if not transcript:
         return {
             "mission_completed": False,
             "outcome": "No hubo conversación",
-            "notes": []
+            "notes": [],
         }
-    
+
     # Formatear transcripción para el análisis
-    transcript_text = "\n".join([
-        f"{'ELLOS' if t['speaker'] == 'other' else 'TÚ'}: {t['message']}"
-        for t in transcript
-    ])
-    
+    transcript_text = "\n".join(
+        [
+            f"{'ELLOS' if t['speaker'] == 'other' else 'TÚ'}: {t['message']}"
+            for t in transcript
+        ]
+    )
+
     analysis_prompt = f"""Analiza esta conversación telefónica y extrae información estructurada.
 
 MISIÓN ORIGINAL:
@@ -177,47 +182,60 @@ Responde SOLO con un JSON válido (sin markdown, sin explicación):
     "notes": ["Lista de información importante mencionada", "Ej: 'Llegar 10 min antes'", "Ej: 'Preguntar por María'", "Ej: 'No aceptan tarjeta'"]
 }}
 """
-    
+
     try:
         response = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": analysis_prompt}],
             temperature=0,
-            max_tokens=500
+            max_tokens=500,
         )
-        
+
         result_text = response.choices[0].message.content.strip()
-        
+
         # Limpiar posibles marcadores de código
         if result_text.startswith("```"):
             result_text = result_text.split("```")[1]
             if result_text.startswith("json"):
                 result_text = result_text[4:]
         result_text = result_text.strip()
-        
+
         result = json.loads(result_text)
-        
+
         return {
             "mission_completed": result.get("mission_completed", False),
             "outcome": result.get("outcome", "Resultado no determinado"),
-            "notes": result.get("notes", [])
+            "notes": result.get("notes", []),
         }
-        
+
     except Exception as e:
         print(f"   ⚠️ Error analizando resultado: {e}")
-        
+
         # Análisis básico de fallback
         full_text = transcript_text.lower()
-        
-        completed = any(word in full_text for word in [
-            "confirmado", "confirmada", "perfecto", "anotado", 
-            "reservado", "reservada", "de acuerdo", "hecho"
-        ])
-        
+
+        completed = any(
+            word in full_text
+            for word in [
+                "confirmado",
+                "confirmada",
+                "perfecto",
+                "anotado",
+                "reservado",
+                "reservada",
+                "de acuerdo",
+                "hecho",
+            ]
+        )
+
         return {
             "mission_completed": completed,
-            "outcome": "Llamada completada" if completed else "Resultado incierto - revisar transcripción",
-            "notes": []
+            "outcome": (
+                "Llamada completada"
+                if completed
+                else "Resultado incierto - revisar transcripción"
+            ),
+            "notes": [],
         }
 
 
@@ -225,22 +243,25 @@ Responde SOLO con un JSON válido (sin markdown, sin explicación):
 # ENDPOINTS REST
 # ===========================================================
 
+
 @app.route("/", methods=["GET"])
 def health():
     """Health check"""
-    return jsonify({
-        "service": "Call Service (Generalista)",
-        "status": "running",
-        "public_url": PUBLIC_URL,
-        "langsmith_enabled": LANGSMITH_ENABLED
-    })
+    return jsonify(
+        {
+            "service": "Call Service (Generalista)",
+            "status": "running",
+            "public_url": PUBLIC_URL,
+            "langsmith_enabled": LANGSMITH_ENABLED,
+        }
+    )
 
 
 @app.route("/start-call", methods=["POST"])
 def start_call():
     """
     Inicia una llamada con misión dinámica.
-    
+
     Body JSON:
     {
         "phone_number": "+34612345678",
@@ -251,29 +272,29 @@ def start_call():
     }
     """
     data = request.json
-    
+
     if not data:
         return jsonify({"error": "No data provided"}), 400
-    
+
     phone_number = data.get("phone_number")
     mission = data.get("mission")
-    
+
     if not phone_number:
         return jsonify({"error": "phone_number is required"}), 400
     if not mission:
         return jsonify({"error": "mission is required"}), 400
-    
+
     # Generar ID único
     call_id = str(uuid.uuid4())[:8]
-    
+
     # Extraer parámetros
     context = data.get("context", "")
     persona_name = data.get("persona_name", "Ana García")
     persona_phone = data.get("persona_phone", "600 123 456")
-    
+
     # Generar script
     script = generate_call_script(mission, context, persona_name, persona_phone)
-    
+
     # Guardar en DB
     calls_db[call_id] = {
         "id": call_id,
@@ -289,37 +310,37 @@ def start_call():
         "twilio_call_sid": None,
         "start_time": None,
         "end_time": None,
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.now().isoformat(),
     }
-    
+
     # Iniciar llamada en background
     thread = threading.Thread(
-        target=_make_call_async,
-        args=(call_id, phone_number),
-        daemon=True
+        target=_make_call_async, args=(call_id, phone_number), daemon=True
     )
     thread.start()
-    
+
     print(f"\n📞 [CALL {call_id}] Iniciando llamada")
     print(f"   📱 Teléfono: {phone_number}")
     print(f"   🎯 Misión: {mission[:50]}...")
-    
-    return jsonify({
-        "call_id": call_id,
-        "status": "initiating",
-        "message": "Llamada iniciándose..."
-    })
+
+    return jsonify(
+        {
+            "call_id": call_id,
+            "status": "initiating",
+            "message": "Llamada iniciándose...",
+        }
+    )
 
 
 @app.route("/call-status/<call_id>", methods=["GET"])
 def call_status(call_id: str):
     """Consulta el estado de una llamada."""
-    
+
     if call_id not in calls_db:
         return jsonify({"error": "Call not found"}), 404
-    
+
     call = calls_db[call_id]
-    
+
     # Calcular duración si está en curso o completada
     duration = None
     if call.get("start_time"):
@@ -330,16 +351,18 @@ def call_status(call_id: str):
         if isinstance(start, str):
             start = datetime.fromisoformat(start)
         duration = (end - start).total_seconds()
-    
-    return jsonify({
-        "call_id": call_id,
-        "status": call["status"],
-        "mission": call["mission"],
-        "transcript": call["transcript"],
-        "result": call["result"],
-        "duration_seconds": duration,
-        "created_at": call["created_at"]
-    })
+
+    return jsonify(
+        {
+            "call_id": call_id,
+            "status": call["status"],
+            "mission": call["mission"],
+            "transcript": call["transcript"],
+            "result": call["result"],
+            "duration_seconds": duration,
+            "created_at": call["created_at"],
+        }
+    )
 
 
 def _make_call_async(call_id: str, phone_number: str):
@@ -350,34 +373,34 @@ def _make_call_async(call_id: str, phone_number: str):
             calls_db[call_id]["result"] = {
                 "mission_completed": False,
                 "outcome": "Servicio no inicializado (ngrok no disponible)",
-                "notes": []
+                "notes": [],
             }
             return
-        
+
         voice_url = f"{PUBLIC_URL}/voice/{call_id}"
         status_url = f"{PUBLIC_URL}/twilio-status/{call_id}"
-        
+
         call = twilio_client.calls.create(
             to=phone_number,
             from_=TWILIO_PHONE,
             url=voice_url,
             status_callback=status_url,
-            status_callback_method="POST"
+            status_callback_method="POST",
         )
-        
+
         calls_db[call_id]["twilio_call_sid"] = call.sid
         calls_db[call_id]["status"] = "calling"
         calls_db[call_id]["start_time"] = datetime.now()
-        
+
         print(f"   ✓ Llamada Twilio iniciada: {call.sid}")
-        
+
     except Exception as e:
         print(f"   ✗ Error: {e}")
         calls_db[call_id]["status"] = "failed"
         calls_db[call_id]["result"] = {
             "mission_completed": False,
             "outcome": f"Error al iniciar llamada: {str(e)}",
-            "notes": []
+            "notes": [],
         }
 
 
@@ -385,14 +408,15 @@ def _make_call_async(call_id: str, phone_number: str):
 # WEBHOOKS DE TWILIO
 # ===========================================================
 
+
 @app.route("/voice/<call_id>", methods=["GET", "POST"])
 def voice_webhook(call_id: str):
     """Webhook de Twilio para iniciar la conversación."""
     from twilio.twiml.voice_response import ConversationRelay
-    
+
     response = VoiceResponse()
     connect = Connect()
-    
+
     host = request.host
     conversation_relay = ConversationRelay(
         url=f"wss://{host}/conversation-ws/{call_id}",
@@ -401,67 +425,63 @@ def voice_webhook(call_id: str):
         voice=ELEVENLABS_VOICE_ID,
         dtmf_detection=False,
     )
-    
+
     connect.append(conversation_relay)
     response.append(connect)
-    
+
     return str(response), 200, {"Content-Type": "application/xml"}
 
 
 @app.route("/twilio-status/<call_id>", methods=["POST"])
 def twilio_status_webhook(call_id: str):
     """Webhook de estado de llamada de Twilio."""
-    
+
     if call_id not in calls_db:
         return "", 200
-    
+
     call_status = request.values.get("CallStatus", "unknown")
     call = calls_db[call_id]
-    
+
     print(f"\n📞 [STATUS {call_id}] {call_status}")
-    
+
     if call_status == "completed":
         call["status"] = "analyzing"
         call["end_time"] = datetime.now()
-        
+
         # Analizar resultado en background
-        thread = threading.Thread(
-            target=_finalize_call,
-            args=(call_id,),
-            daemon=True
-        )
+        thread = threading.Thread(target=_finalize_call, args=(call_id,), daemon=True)
         thread.start()
-        
+
     elif call_status == "failed":
         call["status"] = "failed"
         call["end_time"] = datetime.now()
         call["result"] = {
             "mission_completed": False,
             "outcome": "La llamada falló",
-            "notes": []
+            "notes": [],
         }
-        
+
     elif call_status == "busy":
         call["status"] = "failed"
         call["end_time"] = datetime.now()
         call["result"] = {
             "mission_completed": False,
             "outcome": "Línea ocupada",
-            "notes": ["Intentar más tarde"]
+            "notes": ["Intentar más tarde"],
         }
-        
+
     elif call_status == "no-answer":
         call["status"] = "failed"
         call["end_time"] = datetime.now()
         call["result"] = {
             "mission_completed": False,
             "outcome": "No contestaron",
-            "notes": ["Intentar más tarde"]
+            "notes": ["Intentar más tarde"],
         }
-        
+
     elif call_status in ["ringing", "in-progress"]:
         call["status"] = "in_progress"
-    
+
     return "", 200
 
 
@@ -469,18 +489,15 @@ def twilio_status_webhook(call_id: str):
 def _finalize_call(call_id: str):
     """Analiza y finaliza la llamada."""
     call = calls_db[call_id]
-    
+
     print(f"\n🔍 [ANALYZE {call_id}] Analizando resultado...")
-    
+
     # Analizar transcripción
-    result = analyze_call_result(
-        mission=call["mission"],
-        transcript=call["transcript"]
-    )
-    
+    result = analyze_call_result(mission=call["mission"], transcript=call["transcript"])
+
     call["result"] = result
     call["status"] = "completed"
-    
+
     print(f"   ✓ Misión completada: {result['mission_completed']}")
     print(f"   📋 Resultado: {result['outcome']}")
     if result["notes"]:
@@ -491,71 +508,75 @@ def _finalize_call(call_id: str):
 # WEBSOCKET PARA CONVERSACIÓN
 # ===========================================================
 
+
 @sock.route("/conversation-ws/<call_id>")
 def conversation_websocket(ws, call_id: str):
     """WebSocket para la conversación con Twilio ConversationRelay."""
-    
+
     if call_id not in calls_db:
         print(f"   ✗ Llamada {call_id} no encontrada")
         return
-    
+
     call = calls_db[call_id]
-    
+
     print(f"\n🎙️ [WS {call_id}] Conversación iniciada")
     print(f"   🎯 Misión: {call['mission'][:50]}...")
-    
+
     # Inicializar sesión de conversación
     conversation_sessions[call_id] = {
         "messages": [{"role": "system", "content": call["script"]}],
         "turn_count": 0,
-        "start_time": time_module.time()
+        "start_time": time_module.time(),
     }
-    
+
     try:
         while True:
             # Verificar límites
             session = conversation_sessions.get(call_id, {})
             elapsed = time_module.time() - session.get("start_time", time_module.time())
-            
+
             if elapsed > MAX_CALL_DURATION:
                 print(f"   ⏱️ Límite de tiempo alcanzado ({MAX_CALL_DURATION}s)")
-                _send_goodbye(ws, "Se me ha hecho un poco tarde, ¿podría llamar en otro momento? Gracias.")
+                _send_goodbye(
+                    ws,
+                    "Se me ha hecho un poco tarde, ¿podría llamar en otro momento? Gracias.",
+                )
                 break
-            
+
             if session.get("turn_count", 0) > MAX_TURNS:
                 print(f"   🔄 Límite de turnos alcanzado ({MAX_TURNS})")
                 _send_goodbye(ws, "Muchas gracias por su tiempo. Hasta luego.")
                 break
-            
+
             try:
                 message_raw = ws.receive(timeout=30)
                 if message_raw is None:
                     break
-                
+
                 message = json.loads(message_raw)
                 message_type = message.get("type")
-                
+
             except Exception as e:
                 if "timeout" in str(e).lower():
                     continue
                 break
-            
+
             if message_type == "setup":
                 twilio_call_sid = message.get("callSid")
                 print(f"   📞 Setup: {twilio_call_sid}")
-                
+
             elif message_type == "prompt":
                 _handle_prompt(ws, call_id, message)
-            
+
             elif message_type == "interrupt":
                 print(f"   ⚡ Interrupción detectada")
-            
+
             elif message_type == "error":
                 print(f"   ✗ Error Twilio: {message.get('description')}")
-    
+
     except Exception as e:
         print(f"   ✗ Error WS: {e}")
-    
+
     finally:
         if call_id in conversation_sessions:
             del conversation_sessions[call_id]
@@ -565,79 +586,73 @@ def conversation_websocket(ws, call_id: str):
 @traceable(name="handle_conversation_turn", run_type="llm")
 def _handle_prompt(ws, call_id: str, message: dict):
     """Maneja un turno de la conversación."""
-    
+
     call = calls_db[call_id]
     session = conversation_sessions[call_id]
-    
+
     voice_prompt = message.get("voicePrompt", "")
     print(f"   🏪 Ellos: {voice_prompt}")
-    
+
     # Guardar en transcripción
-    call["transcript"].append({
-        "speaker": "other",
-        "message": voice_prompt,
-        "timestamp": datetime.now().isoformat()
-    })
-    
+    call["transcript"].append(
+        {
+            "speaker": "other",
+            "message": voice_prompt,
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
+
     # Añadir al historial
-    session["messages"].append({
-        "role": "user",
-        "content": voice_prompt
-    })
+    session["messages"].append({"role": "user", "content": voice_prompt})
     session["turn_count"] += 1
-    
+
     # Llamar a OpenAI
     try:
         response = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=session["messages"],
             temperature=0.7,
-            max_tokens=150
+            max_tokens=150,
         )
-        
+
         ai_response = response.choices[0].message.content
         if not ai_response:
             ai_response = "Perdona, no te he escuchado bien. ¿Puedes repetir?"
-        
+
         print(f"   🤖 Tú: {ai_response}")
-        
+
         # Guardar en transcripción
-        call["transcript"].append({
-            "speaker": "self",
-            "message": ai_response,
-            "timestamp": datetime.now().isoformat()
-        })
-        
+        call["transcript"].append(
+            {
+                "speaker": "self",
+                "message": ai_response,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+
         # Añadir al historial
-        session["messages"].append({
-            "role": "assistant",
-            "content": ai_response
-        })
-        
+        session["messages"].append({"role": "assistant", "content": ai_response})
+
         # Enviar respuesta
-        ws.send(json.dumps({
-            "type": "text",
-            "token": ai_response,
-            "last": True
-        }))
-        
+        ws.send(json.dumps({"type": "text", "token": ai_response, "last": True}))
+
     except Exception as e:
         print(f"   ✗ Error OpenAI: {e}")
-        ws.send(json.dumps({
-            "type": "text",
-            "token": "Perdona, ha habido un problema. ¿Puedes repetir?",
-            "last": True
-        }))
+        ws.send(
+            json.dumps(
+                {
+                    "type": "text",
+                    "token": "Perdona, ha habido un problema. ¿Puedes repetir?",
+                    "last": True,
+                }
+            )
+        )
 
 
 def _send_goodbye(ws, message: str):
     """Envía mensaje de despedida y cierra."""
     try:
-        ws.send(json.dumps({
-            "type": "text",
-            "token": message,
-            "last": True
-        }))
+        ws.send(json.dumps({"type": "text", "token": message, "last": True}))
     except:
         pass
 
@@ -646,14 +661,11 @@ def _send_goodbye(ws, message: str):
 # INICIALIZACIÓN
 # ===========================================================
 
-def start_service(port: int = 8080):
-    """Inicia el servicio de llamadas."""
+
+def start_service(CALL_SERVICE_PORT):
+    """Inicia el servicio de llamadas telefónicas con IA."""
     global PUBLIC_URL
-    
-    print("\n" + "=" * 60)
-    print("📞 CALL SERVICE - Llamadas Telefónicas con IA")
-    print("=" * 60)
-    
+
     # Verificar configuración
     missing = []
     if not TWILIO_ACCOUNT_SID:
@@ -664,50 +676,74 @@ def start_service(port: int = 8080):
         missing.append("FROM_TWILIO_PHONE_NUMBER")
     if not OPENAI_API_KEY:
         missing.append("OPENAI_API_KEY")
-    
+
     if missing:
-        print(f"❌ Faltan variables de entorno: {', '.join(missing)}")
+        print(f"❌ Error: Faltan variables de entorno: {', '.join(missing)}")
         return None
-    
+
     # Iniciar Flask
     flask_thread = threading.Thread(
-        target=lambda: app.run(port=port, debug=False, use_reloader=False, host="0.0.0.0"),
-        daemon=True
+        target=lambda: app.run(
+            port=CALL_SERVICE_PORT, debug=False, use_reloader=False, host="0.0.0.0"
+        ),
+        daemon=True,
     )
     flask_thread.start()
-    
-    print(f"✓ Flask iniciado en puerto {port}")
+
+    print(f"✅ Flask iniciado en puerto {CALL_SERVICE_PORT}")
     time_module.sleep(2)
-    
+
     # Iniciar ngrok
     ngrok_token = os.getenv("NGROK_AUTH_TOKEN")
     if ngrok_token:
         try:
             ngrok.set_auth_token(ngrok_token)
-            tunnel = ngrok.connect(port)
+            tunnel = ngrok.connect(CALL_SERVICE_PORT)
             PUBLIC_URL = str(tunnel.public_url).replace("http://", "https://")
-            print(f"✓ ngrok: {PUBLIC_URL}")
+            print(f"✅  ngrok: {PUBLIC_URL}")
         except Exception as e:
-            print(f"⚠️ Error iniciando ngrok: {e}")
-            PUBLIC_URL = f"http://localhost:{port}"
+            print(f"❌ Error: Iniciando ngrok: {e}")
+            PUBLIC_URL = f"http://localhost:{CALL_SERVICE_PORT}"
     else:
         print("⚠️ NGROK_AUTH_TOKEN no configurado")
-        PUBLIC_URL = f"http://localhost:{port}"
-    
-    if LANGSMITH_ENABLED:
-        print(f"✓ LangSmith: habilitado")
-    
-    print("=" * 60)
-    print("✓ Servicio listo")
-    print(f"  POST {PUBLIC_URL}/start-call")
-    print("=" * 60 + "\n")
-    
+        PUBLIC_URL = f"http://localhost:{CALL_SERVICE_PORT}"
+
+    # Actualizar webhook de Twilio
+    if PUBLIC_URL.startswith("https://"):
+        voice_url = f"{PUBLIC_URL}/voice"
+        status_url = f"{PUBLIC_URL}/status"
+
+        print(f"📞 Voice webhook: {voice_url}")
+        print(f"🔔 Status webhook: {status_url}")
+
+        try:
+            incoming_phone_numbers = twilio_client.incoming_phone_numbers.list(
+                phone_number=TWILIO_PHONE
+            )
+
+            if incoming_phone_numbers:
+                phone_number_sid = incoming_phone_numbers[0].sid
+                if phone_number_sid:
+                    twilio_client.incoming_phone_numbers(phone_number_sid).update(
+                        voice_url=voice_url,
+                        voice_method="POST",
+                        status_callback=status_url,
+                        status_callback_method="POST",
+                    )
+                    print(f"✅ Twilio webhook actualizado para {TWILIO_PHONE}")
+                else:
+                    print(f"⚠️ No se pudo obtener SID del número de teléfono")
+            else:
+                print(f"⚠️ Número {TWILIO_PHONE} no encontrado en tu cuenta Twilio")
+        except Exception as e:
+            print(f"❌ Error: actualizando webhook de Twilio: {e}")
+
     return flask_thread
 
 
 if __name__ == "__main__":
     thread = start_service()
-    
+
     if thread:
         try:
             while True:

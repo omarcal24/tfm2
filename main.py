@@ -4,11 +4,15 @@ import time
 import signal
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
 
 # Configuración
-API_HOST = "0.0.0.0"
-API_PORT = 8000  # puerto seguro no protegido en Windows
-STREAMLIT_PORT = 8501
+load_dotenv()
+FAST_API_API_HOST = os.getenv("FAST_API_API_HOST")
+FAST_API_API_PORT = int(os.getenv("FAST_API_API_PORT"))
+STREAMLIT_PORT = int(os.getenv("STREAMLIT_PORT"))
+
 
 # Paths
 ROOT_DIR = Path(__file__).parent
@@ -23,26 +27,33 @@ def print_banner():
     print("\n" + "=" * 60)
     print("🍽️  FOODLOOKER - Sistema de Reservas con IA")
     print("=" * 60)
-    print(f"\n🔧 Backend API:  http://localhost:{API_PORT}")
-    print(f"📚 API Docs:     http://localhost:{API_PORT}/docs")
+    print(f"\n🔧 Backend API:  http://localhost:{FAST_API_API_PORT}")
+    print(f"📚 API Docs:     http://localhost:{FAST_API_API_PORT}/docs")
     print(f"🖥️  Frontend:     http://localhost:{STREAMLIT_PORT}")
     print("\n💡 Presiona Ctrl+C para detener todos los servicios")
     print("=" * 60 + "\n")
 
 
-def start_api():
+def start_fastapi():
     print("🚀 Iniciando FastAPI...")
-    
+
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT_DIR)
 
     process = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "FastAPI.api_server:app",
-         "--host", API_HOST,
-         "--port", str(API_PORT),
-         "--reload"],
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "FastAPI.api_server:app",
+            "--host",
+            str(FAST_API_API_HOST),
+            "--port",
+            str(FAST_API_API_PORT),
+            "--reload",
+        ],
         cwd=ROOT_DIR,
-        env=env
+        env=env,
     )
     processes.append(process)
     return process
@@ -55,12 +66,19 @@ def start_streamlit():
     env["PYTHONPATH"] = str(ROOT_DIR)
 
     process = subprocess.Popen(
-        [sys.executable, "-m", "streamlit", "run",
-         str(FRONTEND_FILE),
-         "--server.port", str(STREAMLIT_PORT),
-         "--server.headless", "true"],
+        [
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            str(FRONTEND_FILE),
+            "--server.port",
+            str(STREAMLIT_PORT),
+            "--server.headless",
+            "true",
+        ],
         cwd=ROOT_DIR,
-        env=env
+        env=env,
     )
     processes.append(process)
     return process
@@ -68,14 +86,14 @@ def start_streamlit():
 
 def cleanup(signum=None, frame=None):
     print("\n\n🛑 Deteniendo servicios...")
-    
+
     for process in processes:
         try:
             process.terminate()
             process.wait(timeout=5)
         except:
             process.kill()
-    
+
     print("✅ Servicios detenidos\n")
     sys.exit(0)
 
@@ -90,7 +108,7 @@ def main():
 
     if mode == "api":
         print("\n🔧 Iniciando solo FastAPI...\n")
-        start_api()
+        start_fastapi()
 
     elif mode == "ui":
         print("\n🖥️  Iniciando solo Streamlit...\n")
@@ -100,7 +118,7 @@ def main():
         print_banner()
 
         # 1. FastAPI primero
-        api_proc = start_api()
+        api_proc = start_fastapi()
 
         # Esperar a que levante
         time.sleep(2)
