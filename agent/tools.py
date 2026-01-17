@@ -188,7 +188,7 @@ def maps_search(
         )
 
         results = places_text_search(payload)
-        places = results[:6] if isinstance(results, list) else []
+        places = results[:5] if isinstance(results, list) else []
 
         if not places:
             return f"No encontré '{query}' en {location}"

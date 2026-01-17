@@ -108,12 +108,10 @@ def generate_call_script(
 ) -> str:
     """Genera el script para la llamada basado en la misión."""
 
-    # Formatear teléfono para dictar
+    # Limpiar el teléfono de espacios/guiones y formatear con pausas cada 3 dígitos
+    phone_clean = persona_phone.replace(" ", "").replace("-", "")
     phone_formatted = " ... ".join(
-        [
-            persona_phone[i : i + 3]
-            for i in range(0, len(persona_phone.replace(" ", "")), 3)
-        ]
+        [phone_clean[i : i + 3] for i in range(0, len(phone_clean), 3)]
     )
 
     # Format the template with variables
@@ -241,7 +239,7 @@ def start_call():
         "mission": "Reservar mesa para 2 personas mañana a las 21:00",
         "context": "Restaurante: Pizzería Tío Miguel. Usuario prefiere terraza.",
         "persona_name": "Ana García",
-        "persona_phone": "600 123 456"
+        "persona_phone": "612345678"
     }
     """
     data = request.json
@@ -262,8 +260,8 @@ def start_call():
 
     # Extraer parámetros
     context = data.get("context", "")
-    persona_name = data.get("persona_name", "Ana García")
-    persona_phone = data.get("persona_phone", "600 123 456")
+    persona_name = data.get("persona_name")
+    persona_phone = data.get("persona_phone")
 
     # Generar script
     script = generate_call_script(mission, context, persona_name, persona_phone)
