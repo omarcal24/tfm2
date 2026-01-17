@@ -317,8 +317,8 @@ def phone_call(
     phone_number: str,
     mission: str,
     context: str = "",
-    persona_name: str = "Ana García",
-    persona_phone: str = "649122018",
+    persona_name: str = "",
+    persona_phone: str = "",
 ) -> str:
     """Realiza una llamada telefónica para cumplir una misión.
 
