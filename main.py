@@ -12,15 +12,18 @@ load_dotenv()
 FAST_API_API_HOST = os.getenv("FAST_API_API_HOST")
 FAST_API_API_PORT = int(os.getenv("FAST_API_API_PORT"))
 STREAMLIT_PORT = int(os.getenv("STREAMLIT_PORT"))
+CALL_SERVICE_PORT = int(os.getenv("CALL_SERVICE_PORT", 8002))
 
 
 # Paths
 ROOT_DIR = Path(__file__).parent
 API_FILE = ROOT_DIR / "FastAPI" / "api_server.py"
 FRONTEND_FILE = ROOT_DIR / "frontend" / "frontend.py"
+CALL_SERVICE_FILE = ROOT_DIR / "backend" / "call_service.py"
 
-# Procesos
+# Procesos y threads
 processes = []
+call_service_thread = None
 
 
 def print_banner():
@@ -29,6 +32,7 @@ def print_banner():
     print("=" * 60)
     print(f"\n🔧 Backend API:  http://localhost:{FAST_API_API_PORT}")
     print(f"📚 API Docs:     http://localhost:{FAST_API_API_PORT}/docs")
+    print(f"📞 Call Service: http://localhost:{CALL_SERVICE_PORT}")
     print(f"🖥️  Frontend:     http://localhost:{STREAMLIT_PORT}")
     print("\n💡 Presiona Ctrl+C para detener todos los servicios")
     print("=" * 60 + "\n")
@@ -65,6 +69,7 @@ def start_streamlit():
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT_DIR)
 
+    # El config.toml en .streamlit/ maneja la configuración
     process = subprocess.Popen(
         [
             sys.executable,
@@ -72,16 +77,28 @@ def start_streamlit():
             "streamlit",
             "run",
             str(FRONTEND_FILE),
-            "--server.port",
-            str(STREAMLIT_PORT),
-            "--server.headless",
-            "true",
         ],
         cwd=ROOT_DIR,
         env=env,
     )
     processes.append(process)
     return process
+
+
+def start_call_service():
+    print("🚀 Iniciando Call Service...")
+
+    # Importar y ejecutar directamente en un thread (como en agent/main.py)
+    from backend.call_service import start_service
+
+    call_thread = start_service(CALL_SERVICE_PORT)
+
+    if call_thread:
+        print(f"✅ Call Service corriendo en puerto {CALL_SERVICE_PORT}")
+        return call_thread
+    else:
+        print(f"❌ Error iniciando Call Service")
+        return None
 
 
 def cleanup(signum=None, frame=None):
@@ -115,25 +132,32 @@ def main():
         start_streamlit()
 
     elif mode in ["all", "both"]:
+        global call_service_thread
+
         print_banner()
 
-        # 1. FastAPI primero
-        api_proc = start_fastapi()
+        # 1. Call Service primero (thread)
+        call_service_thread = start_call_service()
+        time.sleep(3)
 
-        # Esperar a que levante
+        if not call_service_thread or not call_service_thread.is_alive():
+            print("❌ Call Service no se inició correctamente. Revisa errores arriba.")
+            cleanup()
+
+        # 2. FastAPI segundo
+        api_proc = start_fastapi()
         time.sleep(2)
 
-        # Verificar que no murió al arrancar
         if api_proc.poll() is not None:
             print("❌ FastAPI se cerró inesperadamente. Revisa errores arriba.")
             cleanup()
 
-        # 2. Streamlit segundo
+        # 3. Streamlit tercero
         start_streamlit()
 
     else:
         print(f"❌ Modo desconocido: {mode}")
-        print("   Uso: python run.py [all|api|ui]")
+        print("   Uso: python main.py [all|api|ui]")
         sys.exit(1)
 
     # Mantener vivo monitorizando procesos

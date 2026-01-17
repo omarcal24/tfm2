@@ -485,14 +485,28 @@ def format_knowledge(knowledge: dict) -> str:
     # Reserva confirmada
     if "booking" in knowledge:
         b = knowledge["booking"]
+        place_name = b.get("place_name", "Restaurante")
+        date = b.get("date", "")
+        time = b.get("time", "")
+        num_people = b.get("num_people", "")
         lines.append(
-            f"**Reserva:** {b.get('details', {}).get('restaurant')} - {b.get('booking_id')}"
+            f"**Reserva confirmada:** {place_name} - {date} a las {time} para {num_people} personas"
         )
 
     # Búsqueda web
     if "web_search" in knowledge:
         ws = knowledge["web_search"]
         lines.append(f"**Búsqueda web:** {ws.get('query')}")
+
+    # Evento de calendario creado
+    if "calendar_event_created" in knowledge:
+        evt = knowledge["calendar_event_created"]
+        lines.append(f"**✅ Evento creado en calendario:** '{evt.get('summary')}' - {evt.get('start')}")
+
+    # Llamada telefónica realizada
+    if "phone_call_made" in knowledge:
+        call = knowledge["phone_call_made"]
+        lines.append(f"**📞 Llamada realizada:** {call.get('phone_number')} - Misión: {call.get('mission', '')[:50]}")
 
     return "\n".join(lines) if lines else "Ninguno"
 
@@ -541,6 +555,11 @@ def parse_llm_response(text: str) -> dict:
             result["action_input"] = json.loads(json_str)
         except json.JSONDecodeError:
             pass
+    else:
+        # Si no hay ACTION_INPUT pero sí hay ACTION diferente de respond,
+        # usar {} vacío (para herramientas que no requieren parámetros)
+        if result["action"] != "respond":
+            result["action_input"] = {}
 
     return result
 
@@ -637,12 +656,36 @@ def execute_node(state: AgentState) -> AgentState:
         knowledge["places"] = get_search_results()
 
     elif tool_name == "make_booking" and "confirmada" in result.lower():
-        knowledge["booking"] = {"confirmed": True, "details": result}
+        # Guardar la reserva confirmada
+        knowledge["booking"] = {
+            "confirmed": True,
+            "place_name": tool_args.get("place_name"),
+            "date": tool_args.get("date"),
+            "time": tool_args.get("time"),
+            "num_people": tool_args.get("num_people"),
+            "result_text": result[:300]
+        }
 
     elif tool_name == "web_search" and "ERROR" not in result:
         knowledge["web_search"] = {
             "query": tool_args.get("query"),
             "result": result[:500],
+        }
+
+    elif tool_name == "create_calendar_event" and "ERROR" not in result:
+        # Guardar que se creó un evento para evitar duplicados
+        knowledge["calendar_event_created"] = {
+            "summary": tool_args.get("summary"),
+            "start": tool_args.get("start_datetime"),
+            "result": result[:200]
+        }
+
+    elif tool_name == "phone_call" and "ERROR" not in result:
+        # Guardar resultado de la llamada telefónica
+        knowledge["phone_call_made"] = {
+            "phone_number": tool_args.get("phone_number"),
+            "mission": tool_args.get("mission"),
+            "result": result[:500]  # Incluye transcripción y resultado
         }
 
     # Actualizar estado
@@ -682,9 +725,41 @@ def should_continue(state: AgentState) -> Literal["execute", "respond", "brain",
     status = state.get("status", "thinking")
     iterations = state.get("iterations", 0)
 
-    # Límite de iteraciones
+    # Límite de iteraciones - generar respuesta inteligente con knowledge disponible
     if iterations >= MAX_ITERATIONS:
         print(f"⚠️ Límite de iteraciones alcanzado ({MAX_ITERATIONS})")
+        print(f"   → Generando respuesta con información acumulada")
+
+        # Construir respuesta inteligente basada en el knowledge
+        knowledge = state.get("knowledge", {})
+        last_msg = state.get("messages", [])[-1].content if state.get("messages") else ""
+
+        response_parts = []
+
+        # Si encontró lugares
+        if "places" in knowledge and knowledge["places"]:
+            num_places = len(knowledge["places"])
+            response_parts.append(f"He encontrado {num_places} opciones que podrían interesarte.")
+
+        # Si hizo búsquedas web
+        if "web_search" in knowledge:
+            response_parts.append("He investigado información adicional en internet.")
+
+        # Si tiene booking
+        if "booking" in knowledge:
+            b = knowledge["booking"]
+            response_parts.append(f"Tu reserva en {b.get('place_name')} está confirmada.")
+
+        # Mensaje general si no tiene nada específico
+        if not response_parts:
+            response_parts.append("He estado investigando tu solicitud.")
+
+        # Agregar disclaimer
+        response_parts.append("He alcanzado mi límite de búsquedas. ¿Te gustaría que te cuente los detalles de lo que encontré o prefieres que busque algo más específico?")
+
+        # Forzar respond con mensaje construido
+        state["tool_args"] = {"message": " ".join(response_parts)}
+        state["status"] = "responding"
         return "respond"
 
     if status == "executing":

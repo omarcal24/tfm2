@@ -1,14 +1,46 @@
-# genai-tfm
+# 🍽️ FoodLooker - Sistema de Reservas con IA
 
 ## Final Master Project - Generative AI
 
 ### 🤖 Intelligent Restaurant Reservation Agent
 
-**Para probar los ultimos cambios 9/Enero**:
+---
 
-1. Agente en terminal: python agent/main.py --> Ejecutará el agente en terminal, podrás interactuar con el y ver el proceso de razonamiento
-2. FastAPI en terminal antes de lanzar front: python .\FastAPI\api_server.py
-3. Lanzar el Front para interactuar con el agente a traves de FastAPI: streamlit run frontend/frontend.py
+## 🚀 Instalación Rápida con Docker (Recomendado para Evaluación)
+
+### Dos Comandos - Listo para usar
+
+**IMPORTANTE**: Primero crea un archivo `.env` con tus API keys (usa `.env.example` como plantilla).
+
+```bash
+# 1. Construir la imagen
+docker build -t foodlooker .
+
+# 2. Ejecutar el contenedor
+docker run -p 8000:8000 -p 8501:8501 --env-file .env foodlooker
+```
+
+### Acceso a la Aplicación
+
+- 🖥️ **Frontend**: http://localhost:8501
+- 📡 **Backend API**: http://localhost:8000
+- 📖 **Documentación API**: http://localhost:8000/docs
+
+---
+
+## 💻 Instalación Local (Desarrollo)
+
+### Para probar los ultimos cambios:
+
+1. **Agente en terminal**: `python agent/main.py` → Ejecutará el agente en terminal, podrás interactuar con el y ver el proceso de razonamiento
+2. **FastAPI en terminal**: `python .\FastAPI\api_server.py`
+3. **Lanzar el Frontend**: `streamlit run frontend/frontend.py`
+
+### O ejecutar todo con un comando:
+
+```bash
+python main.py
+```
 
 **Instrucciones para generar las credenciales de Google Calendar**
 

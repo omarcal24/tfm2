@@ -276,6 +276,28 @@ def is_lat_lng(value: str) -> bool:
     return bool(re.match(pattern, value.strip()))
 
 
+def get_photo_url(photo_name: str, max_width: int = 400, max_height: int = 400) -> str:
+    """
+    Genera la URL para obtener la foto de un lugar usando la nueva Places API (New).
+
+    Args:
+        photo_name: Nombre de la foto en formato "places/{place_id}/photos/{photo_id}"
+        max_width: Ancho máximo de la imagen en píxeles
+        max_height: Alto máximo de la imagen en píxeles
+
+    Returns:
+        URL completa de la foto con los parámetros necesarios
+    """
+    if not photo_name:
+        return None
+
+    # Nueva Places API (New) usa un endpoint diferente para las fotos
+    base_url = f"https://places.googleapis.com/v1/{photo_name}/media"
+    params = f"?maxWidthPx={max_width}&maxHeightPx={max_height}&key={GOOGLE_MAPS_API_KEY}"
+
+    return base_url + params
+
+
 # ---------------- Función principal ----------------
 def places_text_search_old(payload: PlaceSearchPayload) -> Dict[str, Any]:
 
@@ -387,7 +409,7 @@ def places_text_search(payload: PlaceSearchPayload) -> Dict[str, Any]:
         "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,"
         "places.rating,places.userRatingCount,places.priceLevel,places.types,"
         "places.nationalPhoneNumber,places.websiteUri,places.regularOpeningHours,"
-        "places.addressComponents",
+        "places.addressComponents,places.photos",
     }
 
     # Separar lat,lng
@@ -452,6 +474,12 @@ def places_text_search(payload: PlaceSearchPayload) -> Dict[str, Any]:
                 "periods": place["regularOpeningHours"].get("periods", []),
             }
 
+        # Extraer primera foto si está disponible
+        photo_name = None
+        photos = place.get("photos", [])
+        if photos and len(photos) > 0:
+            photo_name = photos[0].get("name")  # Formato: "places/{place_id}/photos/{photo_id}"
+
         normalized = {
             "name": place.get("displayName", {}).get("text"),
             "address": place.get("formattedAddress"),
@@ -465,6 +493,7 @@ def places_text_search(payload: PlaceSearchPayload) -> Dict[str, Any]:
             "phone": place.get("nationalPhoneNumber"),
             "website": place.get("websiteUri"),
             "opening_hours": opening_hours,
+            "photo_name": photo_name,
         }
 
         results.append(normalized)

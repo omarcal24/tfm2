@@ -30,7 +30,7 @@ def load_config():
         ),
         "LANGSMITH_PROJECT": os.getenv("LANGSMITH_PROJECT", "cv-evaluator"),
         "LANGSMITH_TRACING": os.getenv("LANGSMITH_TRACING", "false").lower() == "true",
-        # Deepeval
+        # Deepeval --> AUN POR IMPLEMENTAR
         "DEEPEVAL_API_KEY": os.getenv("DEEPEVAL_API_KEY", ""),
         "DEEPEVAL_PROJECT_ID": os.getenv("DEEPEVAL_PROJECT_ID", ""),
         "CONFIDENT_API_KEY": os.getenv("CONFIDENT_API_KEY", ""),
@@ -39,7 +39,7 @@ def load_config():
         ),
         # Rutas
         "DATA_DIR": os.path.join(os.path.dirname(os.path.dirname(__file__)), "data"),
-        # Thresholds de métricas en evaluación
+        # Thresholds de métricas en evaluación--> AUN POR IMPLEMENTAR
         "THRESHOLD_REQUIREMENT_EXTRACTION": float(
             os.getenv("THRESHOLD_REQUIREMENT_EXTRACTION", 0.5) or 0.5
         ),
@@ -59,9 +59,6 @@ def load_config():
             os.getenv("THRESHOLD_INTERVIEW_HALLUCINATION", 0.8) or 0.8
         ),
     }
-
-    # config["EXAMPLE_OFFER_PATH"] = os.path.join(config["DATA_DIR"], "example_offer.txt")
-    # # config["EXAMPLE_OFFER_PATH"] = os.path.join(config["DATA_DIR"], "velora_offer.txt")
 
     # Validar OpenAI
     if not config["OPENAI_API_KEY"]:

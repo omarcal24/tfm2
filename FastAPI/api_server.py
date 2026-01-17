@@ -14,9 +14,12 @@ import sys
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import Optional, List, Any, Dict
 from datetime import datetime
+import requests
+import os
 
 # Path setup
 ROOT_DIR = Path(__file__).parent.parent
@@ -96,7 +99,10 @@ def extract_restaurants_from_knowledge(knowledge: Dict) -> List[Dict]:
             "place_id": p.get("place_id"),
             "has_api": p.get("has_api"),
             "available": p.get("available"),
-            "available_times": p.get("available_times", [])
+            "available_times": p.get("available_times", []),
+            "availability": p.get("availability", ""),
+            "opening_hours": p.get("opening_hours", {}),
+            "photo_name": p.get("photo_name")
         })
     
     return restaurants
@@ -206,6 +212,58 @@ async def health():
         "status": "ok",
         "timestamp": datetime.now().isoformat()
     }
+
+
+@app.get("/api/photo/{path:path}")
+async def get_photo(path: str):
+    """
+    Endpoint proxy para obtener fotos de Google Places API.
+
+    La nueva Places API requiere autenticación con header X-Goog-Api-Key,
+    por lo que no se pueden cargar directamente desde el navegador.
+    Este endpoint actúa como proxy seguro.
+
+    Args:
+        path: El photo_name completo, ej: "places/ChIJ.../photos/..."
+
+    Returns:
+        La imagen en formato JPEG
+    """
+    try:
+        # Obtener API key del entorno
+        google_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+        if not google_api_key:
+            raise HTTPException(status_code=500, detail="API key no configurada")
+
+        # Construir URL de la API de Google Places
+        photo_url = f"https://places.googleapis.com/v1/{path}/media"
+        params = {
+            "maxWidthPx": 400,
+            "maxHeightPx": 300,
+            "key": google_api_key
+        }
+
+        # Hacer request a Google Places API
+        response = requests.get(photo_url, params=params, timeout=10)
+
+        if response.status_code == 200:
+            # Devolver la imagen con el content-type correcto
+            return Response(
+                content=response.content,
+                media_type=response.headers.get("Content-Type", "image/jpeg")
+            )
+        else:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Error obteniendo foto de Google: {response.text}"
+            )
+
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Timeout obteniendo foto")
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"Error de red: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 
 # ==================== MAIN ====================

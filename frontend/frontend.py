@@ -14,6 +14,7 @@ import streamlit as st
 from typing import Dict, List, Any, Optional
 import base64
 from datetime import datetime, time as dt_time
+import html as html_module
 
 from frontend.frontend_api_helpers import (
     search_restaurants_via_agent,
@@ -42,6 +43,7 @@ COLOR_PRIMARY_DARK = "#D66A4F"
 COLOR_TEXT_DARK = "#3D3D3D"
 COLOR_USER_BG = "#E8E4DD"
 COLOR_AGENT_BG = "#E07A5F"
+COLOR_GRAY = "#7D7D7D"
 
 # Logo
 def get_base64_image(image_path):
@@ -51,7 +53,7 @@ def get_base64_image(image_path):
     except FileNotFoundError:
         return None
 
-logo_b64 = get_base64_image("logo.jpeg")
+logo_b64 = get_base64_image(str(Path(__file__).parent / "logo.png"))
 
 # ==========================================
 # CSS GLOBAL
@@ -68,30 +70,19 @@ st.markdown(f"""
         background-color: {COLOR_BG};
     }}
 
-    /* Header */
+    /* Header - Simplified with logo */
     .header-box {{
-        background-color: {COLOR_PRIMARY};
-        padding: 12px 25px;
-        border-radius: 12px;
+        padding: 20px 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 20px;
-    }}
-    .header-title {{
-        color: white;
-        font-size: 2.2rem;
-        font-weight: 700;
-        margin: 0;
+        border-bottom: 3px solid {COLOR_PRIMARY};
     }}
     .header-logo {{
-        width: 55px;
-        height: 55px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 2px solid white;
+        height: 120px;
+        width: auto;
+        object-fit: contain;
     }}
 
     /* Botones */
@@ -137,24 +128,134 @@ st.markdown(f"""
         color: {COLOR_TEXT_DARK} !important;
     }}
 
-    /* Tarjetas restaurantes */
-    .restaurant-card {{
-        background-color: #EFEDE6;
-        padding: 15px 18px;
-        border-radius: 12px;
-        margin-bottom: 10px;
-    }}
-    
-    .card-name {{
+    /* Título sección restaurantes */
+    .restaurants-title {{
+        color: {COLOR_PRIMARY};
         font-size: 1.1rem;
         font-weight: 700;
-        color: #5A4A42;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid {COLOR_PRIMARY};
+        text-align: center;
     }}
-    
+
+    /* Contenedor scrollable para tarjetas - independiente del scroll de la página */
+    .restaurants-scroll-container {{
+        max-height: 65vh !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding: 10px 6px 10px 0 !important;
+        margin: 0 auto 15px auto !important;
+        position: relative !important;
+        display: block !important;
+    }}
+
+    /* Scrollbar personalizado */
+    .restaurants-scroll-container::-webkit-scrollbar {{
+        width: 6px;
+    }}
+
+    .restaurants-scroll-container::-webkit-scrollbar-track {{
+        background: #f1f1f1;
+        border-radius: 10px;
+    }}
+
+    .restaurants-scroll-container::-webkit-scrollbar-thumb {{
+        background: {COLOR_PRIMARY};
+        border-radius: 10px;
+    }}
+
+    .restaurants-scroll-container::-webkit-scrollbar-thumb:hover {{
+        background: {COLOR_PRIMARY_DARK};
+    }}
+
+    /* Tarjetas restaurantes más compactas y estrechas */
+    .restaurant-card {{
+        background-color: white;
+        border-radius: 10px;
+        margin: 0 auto 12px auto;
+        overflow: hidden;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        transition: transform 0.2s, box-shadow 0.2s;
+        max-width: 280px;
+        width: 100%;
+    }}
+
+    .restaurant-card:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+    }}
+
+    .card-photo {{
+        width: 100%;
+        height: 160px;
+        object-fit: cover;
+        background-color: #f0f0f0;
+        display: block;
+    }}
+
+    .card-content {{
+        padding: 10px 12px;
+    }}
+
+    .card-name {{
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #2D2D2D;
+        margin-bottom: 4px;
+        line-height: 1.2;
+    }}
+
+    .card-rating {{
+        color: #FF9800;
+        font-size: 0.75rem;
+        margin-bottom: 5px;
+    }}
+
     .card-info {{
         color: #666;
-        font-size: 0.9rem;
-        margin-top: 5px;
+        font-size: 0.72rem;
+        line-height: 1.4;
+        margin-bottom: 3px;
+    }}
+
+    .card-info-label {{
+        font-weight: 600;
+        color: #444;
+    }}
+
+    .card-status {{
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin-top: 6px;
+    }}
+
+    .status-available {{
+        background-color: #E8F5E9;
+        color: #2E7D32;
+    }}
+
+    .status-call {{
+        background-color: #E3F2FD;
+        color: #1976D2;
+    }}
+
+    /* Botón nueva conversación */
+    .btn-new-conversation {{
+        background-color: {COLOR_GRAY} !important;
+        color: white !important;
+        border-radius: 25px !important;
+        padding: 8px 20px !important;
+        font-weight: 600 !important;
+        border: none !important;
+        margin-top: 10px !important;
+    }}
+
+    .btn-new-conversation:hover {{
+        background-color: #6D6D6D !important;
     }}
 
     /* Ocultar elementos por defecto */
@@ -275,21 +376,22 @@ def process_user_input(user_input: str):
         for msg in st.session_state.messages
     ]
     
-    # Enviar al backend con historial COMPLETO
-    response = search_restaurants_via_agent(
-        messages=messages_for_backend,  # ← Historial completo
-        location=prefs.get('location', ''),
-        party_size=prefs.get('party_size', 2),
-        selected_date=selected_date,
-        selected_time=selected_time,
-        mins=mins,
-        travel_mode=prefs.get('travel_mode', 'walking'),
-        max_distance=prefs.get('max_distance', 15.0),
-        price_level=prefs.get('price_level', 2),
-        extras=prefs.get('extras', ''),
-        session_id=st.session_state.agent_session_id
-    )
-    
+    # Enviar al backend con historial COMPLETO (con spinner visual)
+    with st.spinner('🤖 El agente está procesando tu solicitud...'):
+        response = search_restaurants_via_agent(
+            messages=messages_for_backend,  # ← Historial completo
+            location=prefs.get('location', ''),
+            party_size=prefs.get('party_size', 2),
+            selected_date=selected_date,
+            selected_time=selected_time,
+            mins=mins,
+            travel_mode=prefs.get('travel_mode', 'walking'),
+            max_distance=prefs.get('max_distance', 15.0),
+            price_level=prefs.get('price_level', 2),
+            extras=prefs.get('extras', ''),
+            session_id=st.session_state.agent_session_id
+        )
+
     handle_agent_response(response)
     st.session_state.processing = False
 
@@ -333,11 +435,10 @@ def handle_agent_response(response: Dict[str, Any]):
 # ==========================================
 # HEADER
 # ==========================================
-img_html = f'<img src="data:image/jpeg;base64,{logo_b64}" class="header-logo">' if logo_b64 else '🍽️'
+img_html = f'<img src="data:image/png;base64,{logo_b64}" class="header-logo">' if logo_b64 else '<h1 style="color: #E07A5F; margin: 0;">🍽️ FoodLooker</h1>'
 st.markdown(f"""
     <div class="header-box">
         {img_html}
-        <h1 class="header-title">FoodLooker</h1>
     </div>
 """, unsafe_allow_html=True)
 
@@ -345,15 +446,16 @@ st.markdown(f"""
 # ==========================================
 # LAYOUT PRINCIPAL
 # ==========================================
-col_chat, col_options = st.columns([2, 1])
+# Cambio: Chat ahora ocupa 70% del ancho en lugar de 25%
+col_chat, col_options = st.columns([7, 3])
 
 # ==========================================
 # COLUMNA IZQUIERDA: CHAT
 # ==========================================
 with col_chat:
-    
-    # Contenedor del chat con altura fija
-    chat_container = st.container(height=450)
+
+    # Contenedor del chat con altura aumentada
+    chat_container = st.container(height=600)
     
     with chat_container:
         # Mensaje de bienvenida si no hay mensajes
@@ -423,7 +525,7 @@ with col_chat:
     # Input del chat
     with st.form(key="chat_form", clear_on_submit=True):
         col_input, col_btn = st.columns([5, 1])
-        
+
         with col_input:
             user_input = st.text_input(
                 "Mensaje",
@@ -431,13 +533,30 @@ with col_chat:
                 label_visibility="collapsed",
                 key="chat_input"
             )
-        
+
         with col_btn:
             send_clicked = st.form_submit_button("Enviar", use_container_width=True)
-        
+
         if send_clicked and user_input:
             process_user_input(user_input)
             st.rerun()
+
+    # Botón nueva conversación (debajo del input) con estilo gris
+    st.markdown("""
+        <style>
+        div[data-testid="stButton"] button[kind="secondary"] {
+            background-color: #7D7D7D !important;
+            color: white !important;
+        }
+        div[data-testid="stButton"] button[kind="secondary"]:hover {
+            background-color: #6D6D6D !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    if st.button("🔄 Nueva conversación", key="new_conv_btn", use_container_width=True, type="secondary"):
+        clear_chat()
+        st.rerun()
 
 
 # ==========================================
@@ -447,134 +566,181 @@ with col_options:
     
     # Mostrar resultados si los hay
     if st.session_state.show_results and st.session_state.restaurants:
-        st.markdown("### 🏆 Top Restaurantes")
-        
+        st.markdown('<div class="restaurants-title">Detalle lugares encontrados</div>', unsafe_allow_html=True)
+
+        # Construir TODO el HTML de una vez (para evitar que Streamlit inserte elementos entre medio)
+        cards_html = '<div class="restaurants-scroll-container">'
+
         for idx, restaurant in enumerate(st.session_state.restaurants):
-            st.markdown(f"""
-            <div class="restaurant-card">
-                <div class="card-name">{idx + 1}. {restaurant.get('name', 'Restaurante')}</div>
-                <div class="card-info">
-                    📍 {restaurant.get('area', 'N/A')} • 
-                    💰 {restaurant.get('price', '€€')} • 
-                    ⭐ {restaurant.get('rating', 'N/A')}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if st.button(f"Reservar", key=f"reserve_{idx}", use_container_width=True):
-                add_message('user', f"Quiero reservar en {restaurant.get('name')}")
-                st.rerun()
-        
-        st.markdown("")
-        if st.button("🔍 Buscar más opciones", use_container_width=True):
-            st.session_state.show_results = False
-            add_message('assistant', "¡Claro! Cuéntame qué otros criterios quieres.")
-            st.rerun()
-        
-        st.markdown("---")
+            # Obtener datos del restaurante y escapar HTML
+            name = html_module.escape(restaurant.get('name', 'Restaurante'))
+            rating = restaurant.get('rating', 'N/A')
+            reviews = restaurant.get('user_ratings_total', 0)
+            area = html_module.escape(restaurant.get('area', restaurant.get('neighborhood', 'N/A')))
+            price = html_module.escape(restaurant.get('price', '€€'))
+            phone = html_module.escape(restaurant.get('phone', ''))
+            hours = restaurant.get('opening_hours', {})
+            photo_name = restaurant.get('photo_name')
+
+            # Generar URL de foto usando el endpoint proxy de FastAPI
+            photo_url = f"{API_BASE_URL}/api/photo/{photo_name}" if photo_name else None
+
+            # Determinar disponibilidad/estado
+            availability = restaurant.get('availability', '')
+            if 'Disponible' in availability or '✅' in availability:
+                status_class = 'status-available'
+                status_text = '✅ Disponible'
+            elif phone:
+                status_class = 'status-call'
+                status_text = '📞 Llamar para reservar'
+            else:
+                status_class = 'status-call'
+                status_text = ''
+
+            # Formatear horario actual
+            hours_text = ''
+            if hours:
+                if hours.get('open_now'):
+                    hours_text = '🟢 Abierto ahora'
+                else:
+                    hours_text = '🔴 Cerrado ahora'
+
+            # Construir HTML de la foto
+            if photo_url:
+                photo_html = f'<img src="{html_module.escape(photo_url)}" class="card-photo" alt="{name}">'
+            else:
+                photo_html = '<div class="card-photo" style="background-color: #E0E0E0; display: flex; align-items: center; justify-content: center; color: #999;">🍽️</div>'
+
+            # Construir HTML condicional
+            phone_html = '<div class="card-info"><span class="card-info-label">📞</span> ' + phone + '</div>' if phone else ''
+            hours_html = '<div class="card-info">' + hours_text + '</div>' if hours_text else ''
+            status_html = '<div class="card-status ' + status_class + '">' + status_text + '</div>' if status_text else ''
+
+            # Agregar tarjeta al HTML usando concatenación simple
+            cards_html += '<div class="restaurant-card">'
+            cards_html += photo_html
+            cards_html += '<div class="card-content">'
+            cards_html += '<div class="card-name">' + name + '</div>'
+            cards_html += '<div class="card-rating">⭐ ' + str(rating) + ' (' + str(reviews) + ' reseñas)</div>'
+            cards_html += '<div class="card-info"><span class="card-info-label">📍</span> ' + area + '</div>'
+            cards_html += '<div class="card-info"><span class="card-info-label">💰</span> ' + price + '</div>'
+            cards_html += phone_html
+            cards_html += hours_html
+            cards_html += status_html
+            cards_html += '</div>'  # card-content
+            cards_html += '</div>'  # restaurant-card
+
+        # Cerrar contenedor
+        cards_html += '</div>'
+
+        # Renderizar TODO de una vez
+        st.markdown(cards_html, unsafe_allow_html=True)
     
-    # Opciones avanzadas en desplegable
-    with st.expander("⚙️ Opciones avanzadas", expanded=False):
+    # ==========================================
+    # OPCIONES AVANZADAS (COMENTADAS - pueden activarse más adelante)
+    # ==========================================
+    # NOTA: Estas opciones se envían al agente pero actualmente no se usan efectivamente
+    # Para reactivar, descomentar todo el bloque desde aquí hasta "# FIN OPCIONES AVANZADAS"
+
+    # # Opciones avanzadas en desplegable
+    # with st.expander("⚙️ Opciones avanzadas", expanded=False):
         
-        # Ubicación
-        st.markdown("**📍 Ubicación**")
-        st.session_state.preferences['location'] = st.text_input(
-            "loc",
-            value=st.session_state.preferences.get('location', ''),
-            placeholder="Ej: Plaza España, Madrid",
-            label_visibility="collapsed",
-            key="pref_location"
-        )
+        # # Ubicación
+        # st.markdown("**📍 Ubicación**")
+        # st.session_state.preferences['location'] = st.text_input(
+        #     "loc",
+        #     value=st.session_state.preferences.get('location', ''),
+        #     placeholder="Ej: Plaza España, Madrid",
+        #     label_visibility="collapsed",
+        #     key="pref_location"
+        # )
         
-        # Comensales
-        st.markdown("**👥 Comensales**")
-        st.session_state.preferences['party_size'] = st.number_input(
-            "party",
-            min_value=1,
-            max_value=20,
-            value=st.session_state.preferences.get('party_size', 2),
-            label_visibility="collapsed",
-            key="pref_party"
-        )
+        # # Comensales
+        # st.markdown("**👥 Comensales**")
+        # st.session_state.preferences['party_size'] = st.number_input(
+        #     "party",
+        #     min_value=1,
+        #     max_value=20,
+        #     value=st.session_state.preferences.get('party_size', 2),
+        #     label_visibility="collapsed",
+        #     key="pref_party"
+        # )
         
-        # Tiempo
-        st.markdown("**🕒 ¿Cuándo?**")
-        use_specific = st.checkbox(
-            "Fecha/hora específica",
-            value=st.session_state.preferences.get('use_specific_time', False),
-            key="pref_specific_time"
-        )
-        st.session_state.preferences['use_specific_time'] = use_specific
+        # # Tiempo
+        # st.markdown("**🕒 ¿Cuándo?**")
+        # use_specific = st.checkbox(
+        #     "Fecha/hora específica",
+        #     value=st.session_state.preferences.get('use_specific_time', False),
+        #     key="pref_specific_time"
+        # )
+        # st.session_state.preferences['use_specific_time'] = use_specific
         
-        if use_specific:
-            c1, c2 = st.columns(2)
-            with c1:
-                st.session_state.preferences['selected_date'] = st.date_input(
-                    "Fecha", value=datetime.now(), key="pref_date"
-                )
-            with c2:
-                st.session_state.preferences['selected_time'] = st.time_input(
-                    "Hora", value=dt_time(21, 0), key="pref_time"
-                )
-        else:
-            mins = st.slider(
-                "Minutos de espera",
-                min_value=10, max_value=120,
-                value=st.session_state.preferences.get('mins_to_wait', 45),
-                key="pref_mins"
-            )
-            st.session_state.preferences['mins_to_wait'] = mins
+        # if use_specific:
+        #     c1, c2 = st.columns(2)
+        #     with c1:
+        #         st.session_state.preferences['selected_date'] = st.date_input(
+        #             "Fecha", value=datetime.now(), key="pref_date"
+        #         )
+        #     with c2:
+        #         st.session_state.preferences['selected_time'] = st.time_input(
+        #             "Hora", value=dt_time(21, 0), key="pref_time"
+        #         )
+        # else:
+        #     mins = st.slider(
+        #         "Minutos de espera",
+        #         min_value=10, max_value=120,
+        #         value=st.session_state.preferences.get('mins_to_wait', 45),
+        #         key="pref_mins"
+        #     )
+        #     st.session_state.preferences['mins_to_wait'] = mins
         
-        # Transporte
-        st.markdown("**🚶 Transporte**")
-        transport_map = {
-            "Caminando": "walking",
-            "Transporte público": "transit",
-            "Coche/Taxi": "driving",
-            "Bicicleta": "bicycling"
-        }
-        selected_transport = st.selectbox(
-            "transport",
-            options=list(transport_map.keys()),
-            label_visibility="collapsed",
-            key="pref_transport"
-        )
-        st.session_state.preferences['travel_mode'] = transport_map[selected_transport]
+        # # Transporte
+        # st.markdown("**🚶 Transporte**")
+        # transport_map = {
+        #     "Caminando": "walking",
+        #     "Transporte público": "transit",
+        #     "Coche/Taxi": "driving",
+        #     "Bicicleta": "bicycling"
+        # }
+        # selected_transport = st.selectbox(
+        #     "transport",
+        #     options=list(transport_map.keys()),
+        #     label_visibility="collapsed",
+        #     key="pref_transport"
+        # )
+        # st.session_state.preferences['travel_mode'] = transport_map[selected_transport]
         
-        # Distancia
-        st.session_state.preferences['max_distance'] = st.slider(
-            "Distancia máxima (km)",
-            min_value=0.5, max_value=30.0,
-            value=st.session_state.preferences.get('max_distance', 15.0),
-            key="pref_distance"
-        )
+        # # Distancia
+        # st.session_state.preferences['max_distance'] = st.slider(
+        #     "Distancia máxima (km)",
+        #     min_value=0.5, max_value=30.0,
+        #     value=st.session_state.preferences.get('max_distance', 15.0),
+        #     key="pref_distance"
+        # )
         
-        # Precio
-        st.markdown("**💰 Precio**")
-        price_map = {"€": 1, "€€": 2, "€€€": 3, "€€€€": 4}
-        current_price = st.session_state.preferences.get('price_level', 2)
-        current_label = [k for k, v in price_map.items() if v == current_price][0]
-        selected_price = st.select_slider(
-            "price",
-            options=list(price_map.keys()),
-            value=current_label,
-            label_visibility="collapsed",
-            key="pref_price"
-        )
-        st.session_state.preferences['price_level'] = price_map[selected_price]
+        # # Precio
+        # st.markdown("**💰 Precio**")
+        # price_map = {"€": 1, "€€": 2, "€€€": 3, "€€€€": 4}
+        # current_price = st.session_state.preferences.get('price_level', 2)
+        # current_label = [k for k, v in price_map.items() if v == current_price][0]
+        # selected_price = st.select_slider(
+        #     "price",
+        #     options=list(price_map.keys()),
+        #     value=current_label,
+        #     label_visibility="collapsed",
+        #     key="pref_price"
+        # )
+        # st.session_state.preferences['price_level'] = price_map[selected_price]
         
-        # Extras
-        st.markdown("**✨ Extras**")
-        st.session_state.preferences['extras'] = st.text_input(
-            "extras",
-            value=st.session_state.preferences.get('extras', ''),
-            placeholder="Vegano, terraza, sin gluten...",
-            label_visibility="collapsed",
-            key="pref_extras"
-        )
-    
-    # Botón nueva conversación
-    st.markdown("")
-    if st.button("🔄 Nueva conversación", use_container_width=True):
-        clear_chat()
-        st.rerun()
+        # # Extras
+        # st.markdown("**✨ Extras**")
+        # st.session_state.preferences['extras'] = st.text_input(
+        #     "extras",
+        #     value=st.session_state.preferences.get('extras', ''),
+        #     placeholder="Vegano, terraza, sin gluten...",
+        #     label_visibility="collapsed",
+        #     key="pref_extras"
+        # )
+
+    # FIN OPCIONES AVANZADAS
+

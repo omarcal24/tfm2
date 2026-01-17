@@ -107,7 +107,7 @@ def search_restaurants_via_agent(
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY
             },
-            timeout=60
+            timeout=360  # 6 minutos para llamadas telefónicas largas
         )
         
         response.raise_for_status()
@@ -175,16 +175,22 @@ def process_agent_response_for_ui(agent_response: Dict[str, Any]) -> List[Dict[s
     
     processed = []
     
-    for idx, restaurant in enumerate(restaurants[:3]):
+    for idx, restaurant in enumerate(restaurants[:6]):
         processed.append({
             "id": idx + 1,
             "name": restaurant.get("name", "Restaurante"),
             "area": restaurant.get("address", restaurant.get("neighborhood", "N/A")),
+            "neighborhood": restaurant.get("neighborhood", "N/A"),
             "price": _format_price_level(restaurant.get("price_level")),
             "rating": restaurant.get("rating", "N/A"),
+            "user_ratings_total": restaurant.get("user_ratings_total", 0),
             "has_availability": restaurant.get("has_api_booking", False),
             "available": restaurant.get("available"),
-            "place_id": restaurant.get("place_id")
+            "availability": restaurant.get("availability", ""),
+            "place_id": restaurant.get("place_id"),
+            "phone": restaurant.get("phone", ""),
+            "opening_hours": restaurant.get("opening_hours", {}),
+            "photo_name": restaurant.get("photo_name")
         })
     
     return processed
