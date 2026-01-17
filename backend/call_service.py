@@ -39,6 +39,29 @@ from langsmith.run_trees import RunTree
 load_dotenv()
 
 # ===========================================================
+# PROMPT LOADING
+# ===========================================================
+
+
+def _load_prompt_from_file(filename: str) -> str:
+    """Load a prompt from a markdown file in the prompts directory."""
+    from pathlib import Path
+
+    prompts_dir = Path(__file__).parent.parent / "prompts"
+    prompt_path = prompts_dir / filename
+
+    if not prompt_path.exists():
+        raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+
+    with open(prompt_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+# Load prompts from files
+_CALL_SCRIPT_TEMPLATE = _load_prompt_from_file("call_script_generation.md")
+_CALL_ANALYSIS_TEMPLATE = _load_prompt_from_file("call_result_analysis.md")
+
+# ===========================================================
 # CONFIGURACIÓN
 # ===========================================================
 
@@ -85,60 +108,19 @@ def generate_call_script(
 ) -> str:
     """Genera el script para la llamada basado en la misión."""
 
-    # Formatear teléfono para dictar
+    # Limpiar el teléfono de espacios/guiones y formatear con pausas cada 3 dígitos
+    phone_clean = persona_phone.replace(" ", "").replace("-", "")
     phone_formatted = " ... ".join(
-        [
-            persona_phone[i : i + 3]
-            for i in range(0, len(persona_phone.replace(" ", "")), 3)
-        ]
+        [phone_clean[i : i + 3] for i in range(0, len(phone_clean), 3)]
     )
 
-    return f"""Eres {persona_name}, una persona real que está haciendo una llamada telefónica.
-
-═══════════════════════════════════════════════════════════
-TU MISIÓN
-═══════════════════════════════════════════════════════════
-{mission}
-
-═══════════════════════════════════════════════════════════
-CONTEXTO
-═══════════════════════════════════════════════════════════
-{context if context else "Sin contexto adicional"}
-
-═══════════════════════════════════════════════════════════
-TUS DATOS PERSONALES (solo si te los piden)
-═══════════════════════════════════════════════════════════
-- Nombre: {persona_name}
-- Teléfono: {phone_formatted}
-
-═══════════════════════════════════════════════════════════
-INSTRUCCIONES
-═══════════════════════════════════════════════════════════
-1. Cuando contesten, saluda brevemente y ve al grano
-2. Escucha atentamente y responde solo a lo que pregunten
-3. Intenta cumplir tu misión principal
-4. Si hay condiciones o información importante (horarios, requisitos, 
-   instrucciones especiales), confírmalas y recuérdalas
-5. Si no es posible cumplir la misión, pregunta por alternativas
-6. Al finalizar, confirma los detalles importantes y despídete
-7. Dicta el teléfono solo si te lo piden explícitamente de forma lenta y en partes de 1 o 2 números.
-
-═══════════════════════════════════════════════════════════
-REGLAS CRÍTICAS
-═══════════════════════════════════════════════════════════
-- TÚ LLAMAS, no recibes la llamada
-- NUNCA digas "¿en qué puedo ayudarte?" o similar
-- Habla SIEMPRE en español
-- Sé breve, natural y educado
-- Si no entiendes algo, pide que lo repitan
-- Si después de 3 intentos no hay comunicación clara, despídete educadamente
-
-═══════════════════════════════════════════════════════════
-EJEMPLO DE INICIO
-═══════════════════════════════════════════════════════════
-Ellos: "Dígame" / "Hola" / "Buenos días"
-Tú: "Hola, buenos días. Llamaba para [tu misión en una frase]..."
-"""
+    # Format the template with variables
+    return _CALL_SCRIPT_TEMPLATE.format(
+        persona_name=persona_name,
+        mission=mission,
+        context=context if context else "Sin contexto adicional",
+        phone_formatted=phone_formatted,
+    )
 
 
 # ===========================================================
@@ -167,21 +149,10 @@ def analyze_call_result(
         ]
     )
 
-    analysis_prompt = f"""Analiza esta conversación telefónica y extrae información estructurada.
-
-MISIÓN ORIGINAL:
-{mission}
-
-TRANSCRIPCIÓN:
-{transcript_text}
-
-Responde SOLO con un JSON válido (sin markdown, sin explicación):
-{{
-    "mission_completed": true/false,
-    "outcome": "Descripción breve del resultado (ej: 'Reserva confirmada para las 22:00', 'No había disponibilidad', 'Cita agendada para el martes')",
-    "notes": ["Lista de información importante mencionada", "Ej: 'Llegar 10 min antes'", "Ej: 'Preguntar por María'", "Ej: 'No aceptan tarjeta'"]
-}}
-"""
+    # Format the analysis template
+    analysis_prompt = _CALL_ANALYSIS_TEMPLATE.format(
+        mission=mission, transcript_text=transcript_text
+    )
 
     try:
         response = openai_client.chat.completions.create(
@@ -268,7 +239,7 @@ def start_call():
         "mission": "Reservar mesa para 2 personas mañana a las 21:00",
         "context": "Restaurante: Pizzería Tío Miguel. Usuario prefiere terraza.",
         "persona_name": "Ana García",
-        "persona_phone": "600 123 456"
+        "persona_phone": "612345678"
     }
     """
     data = request.json
@@ -289,8 +260,8 @@ def start_call():
 
     # Extraer parámetros
     context = data.get("context", "")
-    persona_name = data.get("persona_name", "Ana García")
-    persona_phone = data.get("persona_phone", "600 123 456")
+    persona_name = data.get("persona_name")
+    persona_phone = data.get("persona_phone")
 
     # Generar script
     script = generate_call_script(mission, context, persona_name, persona_phone)

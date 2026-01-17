@@ -188,7 +188,7 @@ def maps_search(
         )
 
         results = places_text_search(payload)
-        places = results[:6] if isinstance(results, list) else []
+        places = results[:5] if isinstance(results, list) else []
 
         if not places:
             return f"No encontré '{query}' en {location}"
@@ -317,8 +317,8 @@ def phone_call(
     phone_number: str,
     mission: str,
     context: str = "",
-    persona_name: str = "Ana García",
-    persona_phone: str = "649122018",
+    persona_name: str = "",
+    persona_phone: str = "",
 ) -> str:
     """Realiza una llamada telefónica para cumplir una misión.
 
