@@ -114,7 +114,7 @@ def generate_call_script(
 
     # Limpiar el teléfono de espacios/guiones y formatear con pausas cada 3 dígitos
     phone_clean = persona_phone.replace(" ", "").replace("-", "")
-    phone_formatted = " ... ".join(
+    phone_formatted = "...".join(
         [phone_clean[i : i + 3] for i in range(0, len(phone_clean), 3)]
     )
 
