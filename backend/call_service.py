@@ -30,6 +30,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_sock import Sock
 from pyngrok import ngrok
+import logging
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Connect
 from openai import OpenAI
@@ -67,6 +68,9 @@ _CALL_ANALYSIS_TEMPLATE = _load_prompt_from_file("call_result_analysis.md")
 
 app = Flask(__name__)
 sock = Sock(app)
+
+# Silenciar logs de Werkzeug (Flask)
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 # Twilio
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -562,7 +566,7 @@ def _handle_prompt(ws, call_id: str, message: dict):
     session = conversation_sessions[call_id]
 
     voice_prompt = message.get("voicePrompt", "")
-    print(f"   🏪 Ellos: {voice_prompt}")
+    print(f"   🏪 Restaurante: {voice_prompt}")
 
     # Guardar en transcripción
     call["transcript"].append(

@@ -1,46 +1,15 @@
-# 🍽️ FoodLooker - Sistema de Reservas con IA
+# 🍽️ FoodLooker
 
-## Final Master Project - Generative AI
-
-### 🤖 Intelligent Restaurant Reservation Agent
-
----
-
-## 🚀 Instalación Rápida con Docker (Recomendado para Evaluación)
-
-### Dos Comandos - Listo para usar
-
-**IMPORTANTE**: Primero crea un archivo `.env` con tus API keys (usa `.env.example` como plantilla).
-
-```bash
-# 1. Construir la imagen
-docker build -t foodlooker .
-
-# 2. Ejecutar el contenedor
-docker run -p 8000:8000 -p 8501:8501 --env-file .env foodlooker
-```
-
-### Acceso a la Aplicación
-
-- 🖥️ **Frontend**: http://localhost:8501
-- 📡 **Backend API**: http://localhost:8000
-- 📖 **Documentación API**: http://localhost:8000/docs
+Agente Inteligente de reservas con IA
+Trabajo final de Máster
 
 ---
 
-## 💻 Instalación Local (Desarrollo)
+## Ejecución del proyecto
 
-### Para probar los ultimos cambios:
+## Pasos previos
 
-1. **Agente en terminal**: `python agent/main.py` → Ejecutará el agente en terminal, podrás interactuar con el y ver el proceso de razonamiento
-2. **FastAPI en terminal**: `python .\FastAPI\api_server.py`
-3. **Lanzar el Frontend**: `streamlit run frontend/frontend.py`
-
-### O ejecutar todo con un comando:
-
-```bash
-python main.py
-```
+⚠️**IMPORTANTE**: Primero crea un archivo `.env` con tus API keys (usa `.env.example` como plantilla).
 
 **Instrucciones para generar las credenciales de Google Calendar**
 
@@ -78,23 +47,39 @@ python main.py
    - Places API (New) o Places API (para búsqueda de lugares)
    - Distance Matrix API (para filtrado por tiempo de viaje)
 
-POR HACER/SUGERIR:
+---
 
-- Integrar flujo llamadas de voz con twilio y agente
-- Integrar todo bajo un mismo script ejecutable - TENEMOS VARIOS main.py ESTO NO PUEDE SER
-- Terminar de ajustar el Frontend para dejarlo más fino
-- montar en nube como aplicación???(megamotivada seria ya)
+### 💻 Ejecución desde bash (Ejecución completa con todas las APIs de terceros y streamlit)
 
-TO UPDATE BELOW
+```bash
+python main.py
+```
 
-An autonomous agent built with LangGraph that searches restaurants, checks availability, and makes reservations using natural language.
+Para debugear por separado cada elemento:
 
-**Key Features:**
+1. **Agente en terminal**: `python agent/main.py` → Ejecutará el agente en terminal, podrás interactuar con el y ver el proceso de razonamiento
+2. **FastAPI en terminal**: `python .\FastAPI\api_server.py`
+3. **Lanzar el Frontend**: `streamlit run frontend/frontend.py`
 
-- Natural language understanding (extracts location, date, time, people from conversation)
-- Intelligent TOP 3 ranking with LLM reasoning
-- Automatic fallback: API → Phone call if needed
-- Human-in-the-Loop for critical decisions
+---
+
+### 🐋 Ejecución Rápida con Docker (No carga streamlit ni Google Calendar)
+
+Dos Comandos - Listo para usar
+
+```bash
+# 1. Construir la imagen
+docker build -t foodlooker .
+
+# 2. Ejecutar el contenedor
+docker run -p 8000:8000 -p 8501:8501 --env-file .env foodlooker
+```
+
+Acceso a la Aplicación
+
+- 🖥️ **Frontend**: http://localhost:8501
+- 📡 **Backend API**: http://localhost:8000
+- 📖 **Documentación API**: http://localhost:8000/docs
 
 ---
 
@@ -104,12 +89,19 @@ An autonomous agent built with LangGraph that searches restaurants, checks avail
 genai-tfm/
 │
 ├── agent/                          # Core agent system (LangGraph + ReAct)
-│   ├── agent_state.py             # State management and data models
-│   ├── agent_prompts.py           # LLM prompts and templates
-│   ├── agent_tools.py             # External tools (Google Places, APIs)
-│   ├── agent_nodes.py             # 12 intelligence nodes
-│   ├── agent_graph.py             # LangGraph orchestration
-│   └── agent_main.py              # Agent execution module
+│   ├── graph.py                   # LangGraph orchestration and nodes
+│   ├── main.py                    # Agent execution entry point (terminal)
+│   ├── prompts.py                 # Prompt loader and formatter
+│   ├── state.py                   # State management and data models
+│   └── tools.py                   # External tools (Maps, Booking, Calendar, Phone)
+│
+├── backend/                        # Backend services
+│   ├── calendar_tools.py          # Google Calendar integration
+│   ├── call_service.py            # Twilio/ElevenLabs phone call service
+│   └── google_places.py           # Google Places API integration
+│
+├── config/
+│   └── settings.py                # Configuration loader (.env)
 │
 ├── FastAPI/                        # API backend
 │   ├── api_server.py              # FastAPI server
@@ -117,57 +109,17 @@ genai-tfm/
 │
 ├── frontend/                       # User interface
 │   ├── frontend.py                # Streamlit UI
-│   └── logo.jpeg                  # UI assets
-|
-├── Playground_arena/                        # Testing area
-│   ├── playground_arena_notebook.ipynb       # Testing funcion google places
+│   └── frontend_api_helpers.py    # API helper functions
 │
-├── logs/                           # Execution logs
+├── prompts/                        # Prompt templates (markdown)
+│   ├── agent_system_prompt.md     # Main agent system prompt
+│   ├── call_script_generation.md  # Phone call script template
+│   └── call_result_analysis.md    # Call result analysis template
 │
 ├── .env                            # Environment variables (API keys)
 ├── .env.example                    # Environment template
-├── .gitignore                      # Git ignore rules
-├── backend_google_places.py        # Google Places API integration
-├── main.py                         # Legacy entry point
-├── Playground_notebook.ipynb       # Development notebook with examples of use
+├── Dockerfile                      # Docker configuration
+├── main.py                         # Main entry point (starts all services)
 ├── README.md                       # Project documentation
-├── requirements.txt                # Python dependencies
-├── run.py                          # Main entry point for agent
-
+└── requirements.txt                # Python dependencies
 ```
-
----
-
-## 🚀 Quick Start
-
----
-
-### 1. Run the agent in the terminal
-
-**TERMINAL MODE Interactive mode (chat):**
-
-```bash
-python run.py --mode interactive
-```
-
-**UNTESTED Test mode (automated):**
-
-```bash
-python run.py --mode test
-```
-
-**UNTESTED Specific test case:**
-
-```bash
-python run.py --mode test --test-case complete
-```
-
-### 2. Run the API Server
-
-**In the terminal, inside the FastAPI folder:**
-
-```bash
-python api_server.py
-```
-
----
