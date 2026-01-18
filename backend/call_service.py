@@ -112,11 +112,30 @@ def generate_call_script(
 ) -> str:
     """Genera el script para la llamada basado en la misión."""
 
-    # Limpiar el teléfono de espacios/guiones y formatear con pausas cada 3 dígitos
+    # Limpiar el teléfono y formatear como palabras con pausas SSML
+    # 0.5s entre dígitos, 1s cada 3 dígitos
+    digit_words = {
+        "0": "cero",
+        "1": "uno",
+        "2": "dos",
+        "3": "tres",
+        "4": "cuatro",
+        "5": "cinco",
+        "6": "seis",
+        "7": "siete",
+        "8": "ocho",
+        "9": "nueve",
+    }
     phone_clean = persona_phone.replace(" ", "").replace("-", "")
-    phone_formatted = "...".join(
-        [phone_clean[i : i + 3] for i in range(0, len(phone_clean), 3)]
-    )
+    phone_parts = []
+    for i, digit in enumerate(phone_clean):
+        phone_parts.append(digit_words[digit])
+        if i + 1 < len(phone_clean):
+            if (i + 1) % 3 == 0:
+                phone_parts.append('<break time="0.3s" />')
+            else:
+                phone_parts.append('<break time="0.1s" />')
+    phone_formatted = " ".join(phone_parts)
 
     # Format the template with variables
     return _CALL_SCRIPT_TEMPLATE.format(
@@ -148,7 +167,7 @@ def analyze_call_result(
     # Formatear transcripción para el análisis
     transcript_text = "\n".join(
         [
-            f"{'ELLOS' if t['speaker'] == 'other' else 'TÚ'}: {t['message']}"
+            f"{'Restaurante' if t['speaker'] == 'other' else 'Bot'}: {t['message']}"
             for t in transcript
         ]
     )
@@ -160,9 +179,9 @@ def analyze_call_result(
 
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.getenv("MODEL_NAME", "gpt-4o-mini"),
             messages=[{"role": "user", "content": analysis_prompt}],
-            temperature=0,
+            temperature=float(os.getenv("TEMPERATURE", 0)),
             max_tokens=500,
         )
 
@@ -259,7 +278,7 @@ def start_call():
     if not mission:
         return jsonify({"error": "mission is required"}), 400
 
-    # Generar ID único
+    # Generar ID único de llamada
     call_id = str(uuid.uuid4())[:8]
 
     # Extraer parámetros
