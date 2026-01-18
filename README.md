@@ -105,7 +105,7 @@ genai-tfm/
 │
 ├── FastAPI/                        # API backend
 │   ├── api_server.py              # FastAPI server
-│   └── test_api.py                # API tests
+│   └── test_api.py                # API tests (manual)
 │
 ├── frontend/                       # User interface
 │   ├── frontend.py                # Streamlit UI
@@ -116,10 +116,62 @@ genai-tfm/
 │   ├── call_script_generation.md  # Phone call script template
 │   └── call_result_analysis.md    # Call result analysis template
 │
+├── tests/                          # Automated tests (pytest)
+│   ├── conftest.py                # Shared fixtures and mocks
+│   ├── unit/                      # Unit tests
+│   │   ├── test_agent_graph.py   # Tests for agent graph logic
+│   │   ├── test_tools.py         # Tests for agent tools
+│   │   ├── test_state.py         # Tests for state management
+│   │   ├── test_prompts.py       # Tests for prompt system
+│   │   └── test_settings.py      # Tests for configuration
+│   ├── integration/               # Integration tests
+│   │   ├── test_google_places.py # Tests for Google Places API
+│   │   ├── test_call_service.py  # Tests for phone call service
+│   │   ├── test_calendar_tools.py# Tests for calendar integration
+│   │   └── test_api_server.py    # Tests for FastAPI endpoints
+│   └── fixtures/                  # Test data and mock responses
+│       └── mock_responses.py     # Sample API responses for testing
+│
+├── .coveragerc                     # Coverage configuration (output to test_results/)
 ├── .env                            # Environment variables (API keys)
 ├── .env.example                    # Environment template
 ├── Dockerfile                      # Docker configuration
 ├── main.py                         # Main entry point (starts all services)
+├── pytest.ini                      # Pytest configuration
 ├── README.md                       # Project documentation
 └── requirements.txt                # Python dependencies
 ```
+
+---
+
+## 🧪 Testing
+
+El proyecto incluye tests automatizados con pytest. Los resultados se generan en `test_results/` (configurado en `.coveragerc` y `pytest.ini`).
+
+```bash
+# Instalar dependencias de testing
+pip install -r requirements.txt
+
+# Ejecutar todos los tests
+pytest
+
+# Ejecutar solo tests unitarios
+pytest tests/unit/
+
+# Ejecutar solo tests de integración
+pytest tests/integration/
+
+# Ejecutar con cobertura de código (resultados en test_results/htmlcov/)
+pytest --cov
+
+# Ejecutar un archivo específico con verbose
+pytest tests/unit/test_agent_graph.py -v
+
+# Generar reporte JUnit XML (para CI/CD)
+pytest --junitxml=test_results/junit.xml
+```
+
+Los resultados se guardan en:
+- `test_results/htmlcov/` - Reporte HTML de cobertura
+- `test_results/.coverage` - Datos de cobertura
+- `test_results/junit.xml` - Reporte JUnit (opcional)
